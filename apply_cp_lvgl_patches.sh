@@ -402,10 +402,8 @@ if [ "$PORT" = "unix" ]; then
     log
 
     log "==> Patch unix variant mpconfigvariant.mk (module sources)"
-    VARIANT_BINDINGS_BLOCK=$'shared-bindings/lvgl/__init__.c \\'
-    insert_block_after_line "$VARIANT_MK" $'shared-bindings/jpegio/JpegDecoder.c \\' "$VARIANT_BINDINGS_BLOCK" "shared-bindings/lvgl/__init__.c"
-    VARIANT_MODULE_BLOCK=$'shared-module/lvgl/__init__.c \\'
-    insert_block_after_line "$VARIANT_MK" $'shared-module/jpegio/JpegDecoder.c \\' "$VARIANT_MODULE_BLOCK" "shared-module/lvgl/__init__.c"
+    insert_raw_after_line "$VARIANT_MK" $'shared-bindings/jpegio/JpegDecoder.c \\' $'\tshared-bindings/lvgl/__init__.c \\'
+    insert_raw_after_line "$VARIANT_MK" $'shared-module/jpegio/JpegDecoder.c \\' $'\tshared-module/lvgl/__init__.c \\'
     log
 
     log "==> Patch unix variant mpconfigvariant.h (ifndef guard)"
@@ -447,8 +445,7 @@ SRC_PATTERNS += lvgl/%
 endif"
 insert_block_before_line "$DEFNS_MK" "ifeq (\$(CIRCUITPY_MATH),1)" "$DEFNS_PATTERNS_BLOCK" "SRC_PATTERNS += lvgl/%"
 
-DEFNS_LIST_BLOCK=$'\tlvgl/__init__.c \\'
-insert_block_after_line "$DEFNS_MK" $'\tjpegio/JpegDecoder.c \\' "$DEFNS_LIST_BLOCK" "lvgl/__init__.c"
+insert_raw_after_line "$DEFNS_MK" $'\tjpegio/JpegDecoder.c \\' $'\tlvgl/__init__.c \\'
 log
 
 log "==> Patch port Makefile (circuitpython.mk)"
