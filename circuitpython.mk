@@ -1,0 +1,47 @@
+# CircuitPython build glue for LVGL + generated bindings.
+#
+# Include from a CircuitPython port Makefile after setting LV_CP_MOD_DIR:
+#
+#   LV_CP_MOD_DIR := $(abspath ../../lv_circuitpython_mod)   # adjust relative to port dir
+#   include $(LV_CP_MOD_DIR)/circuitpython.mk
+#
+# Requires:
+#   - lv_bindings/generated/lvcp.c (run lv_bindings/regenerate_lvcp.sh)
+#   - CIRCUITPY_LVGL=1 in port config (unix variant or board mpconfigboard.mk)
+
+LV_CP_MOD_DIR ?= $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
+LV_BINDINGS_DIR ?= $(abspath $(LV_CP_MOD_DIR)/../lv_bindings)
+LVGL_DIR := $(LV_BINDINGS_DIR)/lvgl
+LVCP_C := $(LV_BINDINGS_DIR)/generated/lvcp.c
+
+CMODS_LVGL_SOURCES := $(shell find $(LVGL_DIR)/src -type f -name '*.c')
+# CP coverage (and jpegio) already link lib/tjpgd; LVGL's copy uses incompatible tjpgdcnf.
+CMODS_LVGL_SOURCES := $(filter-out $(LVGL_DIR)/src/libs/tjpgd/tjpgd.c,$(CMODS_LVGL_SOURCES))
+CMODS_LV_SOURCES := $(LV_CP_MOD_DIR)/lv_mem_core_circuitpython.c
+
+ifeq ($(wildcard $(LVCP_C)),)
+$(error $(LVCP_C) not found. Run $(LV_BINDINGS_DIR)/regenerate_lvcp.sh)
+endif
+CMODS_LV_SOURCES += $(LVCP_C)
+
+# CircuitPython allocator override (see lv_conf.h + lv_mem_core_circuitpython.c)
+CFLAGS += -DCMODS_CIRCUITPYTHON_BUILD=1
+CFLAGS += -I$(LV_BINDINGS_DIR) -I$(LVGL_DIR) -Wno-unused-function
+
+# Spike module + generated bindings need LVGL headers during qstr/preprocess.
+$(BUILD)/shared-bindings/lvgl/%.o: CFLAGS += -I$(LV_BINDINGS_DIR) -I$(LVGL_DIR) -Wno-unused-const-variable
+$(BUILD)/shared-module/lvgl/%.o: CFLAGS += -I$(LV_BINDINGS_DIR) -I$(LVGL_DIR)
+
+# LVGL + generated bindings: suppress -Werror noise from upstream/generated C.
+LVGL_SUPPRESS_CFLAGS := -Wno-cast-align -Wno-nested-externs -Wno-unused-parameter \
+	-Wno-sign-compare -Wno-missing-prototypes -Wno-old-style-definition \
+	-Wno-float-conversion -Wno-double-promotion -Wno-shadow
+$(foreach _lvsrc,$(CMODS_LVGL_SOURCES),$(eval $(BUILD)/$(_lvsrc:.c=.o): CFLAGS += $(LVGL_SUPPRESS_CFLAGS)))
+$(foreach _lvsrc,$(CMODS_LV_SOURCES),$(eval $(BUILD)/$(_lvsrc:.c=.o): CFLAGS += $(LVGL_SUPPRESS_CFLAGS)))
+
+# LVGL + bindings + GC-aware allocator
+SRC_C += $(CMODS_LVGL_SOURCES) $(CMODS_LV_SOURCES)
+
+# Hand-written module registration lives in the CP tree:
+#   shared-bindings/lvgl/__init__.c  (spike; see docs/circuitpython_spike.md)
+# Generated API surface is in generated/lvcp.c; merge via LVCP_MODULE_GLOBALS in __init__.c.
