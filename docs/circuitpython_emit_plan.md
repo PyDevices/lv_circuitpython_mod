@@ -185,7 +185,7 @@ Suggested first automated emission: **Phase 1 only** (constants), behind `--targ
 ./lv_bindings/regenerate_lvcp.sh
 
 # Full CP unix firmware (stock or after apply_cp_lvgl_patches.sh --apply)
-./build_any.sh --port unix --variant standard
+./build_cp.sh --port unix --variant standard
 ```
 
 Output files:

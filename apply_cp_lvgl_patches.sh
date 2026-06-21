@@ -424,7 +424,7 @@ patch_module_sources_if_present() {
 }
 
 build_next_cmd() {
-    local -a cmd=("$LV_CP_MOD_DIR/build_any.sh" --port "$PORT")
+    local -a cmd=("$LV_CP_MOD_DIR/build_cp.sh" --port "$PORT")
     [[ -n "$BOARD" ]] && cmd+=(--board "$BOARD")
     [[ -n "$VARIANT" ]] && cmd+=(--variant "$VARIANT")
     printf '%q ' "${cmd[@]}"

@@ -2,7 +2,7 @@
 # Build any CircuitPython port/board/variant.
 #
 # Usage:
-#   ./build_any.sh [--port PORT] [--board BOARD] [--variant VARIANT]
+#   ./build_cp.sh [--port PORT] [--board BOARD] [--variant VARIANT]
 #
 # Environment: WORKSPACE_DIR, CP_DIR, PORT, BOARD, VARIANT, CP_BUILD_VENV
 # Runs apply_cp_lvgl_patches.sh --apply before building (does not regenerate bindings).
@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-BUILD_ANY="${BUILD_ANY:-$SCRIPT_DIR/build_any.sh}"
+BUILD_CP="${BUILD_CP:-$SCRIPT_DIR/build_cp.sh}"
 WORKSPACE_DIR="${WORKSPACE_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 CP_DIR="${CP_DIR:-$WORKSPACE_DIR/circuitpython}"
 
@@ -127,7 +127,7 @@ list_variants() {
 }
 
 print_rerun_hint() {
-    local -a cmd=("$BUILD_ANY")
+    local -a cmd=("$BUILD_CP")
     cmd+=(--port "$PORT")
     [[ -n "$BOARD" ]] && cmd+=(--board "$BOARD")
     [[ -n "$VARIANT" ]] && cmd+=(--variant "$VARIANT")

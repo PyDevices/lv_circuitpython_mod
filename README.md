@@ -38,7 +38,7 @@ cd ..
 
 ## Build environment
 
-Install system build tools and cross-compilers **before** using `build_any.sh`. Follow CircuitPython’s own documentation — this repo does not install compilers or apt packages for you.
+Install system build tools and cross-compilers **before** using `build_cp.sh`. Follow CircuitPython’s own documentation — this repo does not install compilers or apt packages for you.
 
 - [circuitpython/BUILDING.md](https://github.com/adafruit/circuitpython/blob/main/BUILDING.md) in your clone
 - Adafruit Learn: [Building CircuitPython on Linux](https://learn.adafruit.com/building-circuitpython/linux) (or macOS / WSL as appropriate)
@@ -65,9 +65,9 @@ arm-none-eabi-gcc --version   # should report GCC 14.x
 which arm-none-eabi-gcc       # should be under /opt/..., not /usr/bin
 ```
 
-Open a new terminal (or `source /etc/profile.d/arm-gnu-toolchain.sh`) before running `build_any.sh`.
+Open a new terminal (or `source /etc/profile.d/arm-gnu-toolchain.sh`) before running `build_cp.sh`.
 
-`build_any.sh` only manages a local Python venv (`.venv/`) and installs `circuitpython/requirements-dev.txt`. If `minify_html` fails to install, you may need Rust (see CircuitPython `BUILDING.md`).
+`build_cp.sh` only manages a local Python venv (`.venv/`) and installs `circuitpython/requirements-dev.txt`. If `minify_html` fails to install, you may need Rust (see CircuitPython `BUILDING.md`).
 
 ## Patch and build
 
@@ -76,18 +76,18 @@ cd lv_circuitpython_mod
 ./apply_cp_lvgl_patches.sh --dry-run --port unix --variant coverage
 ./apply_cp_lvgl_patches.sh --apply --port unix --variant coverage
 ./apply_cp_lvgl_patches.sh --force-apply --port unix --variant coverage  # reinstall patches
-./build_any.sh --port unix --variant standard   # LVGL dev (no gcov)
-./build_any.sh --port unix --variant coverage   # CP test suite / gcov
+./build_cp.sh --port unix --variant standard   # LVGL dev (no gcov)
+./build_cp.sh --port unix --variant coverage   # CP test suite / gcov
 ```
 
 Examples:
 
 ```bash
-./build_any.sh --port espressif --board espressif_esp32p4_function_ev
-./build_any.sh    # interactive port/board/variant selection
+./build_cp.sh --port espressif --board espressif_esp32p4_function_ev
+./build_cp.sh    # interactive port/board/variant selection
 ```
 
-`build_any.sh` always runs `apply_cp_lvgl_patches.sh --apply` before make (idempotent).
+`build_cp.sh` always runs `apply_cp_lvgl_patches.sh --apply` before make (idempotent).
 
 Smoke test:
 
@@ -114,7 +114,7 @@ Smoke test:
 | `apply_cp_lvgl_patches.sh` | Patch CP tree and copy spike templates (`--apply`, `--force-apply`, `--status`) |
 | `circuitpython_spike/` | Hand-written `shared-bindings/lvgl` module templates |
 | `lv_mem_core_circuitpython.c` | GC-aware LVGL allocator |
-| `build_any.sh` | Build any port/board/variant (interactive or CLI) |
+| `build_cp.sh` | Build any port/board/variant (interactive or CLI) |
 | `docs/` | Integration notes |
 
 See `docs/circuitpython_spike.md` for architecture details.

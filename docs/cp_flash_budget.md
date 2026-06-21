@@ -64,7 +64,7 @@ Neither port implements `lv_mem_monitor_core` (no-op).
 
 1. Regenerate bindings: `./lv_bindings/regenerate_lvcp.sh`
 2. Apply patches: `./apply_cp_lvgl_patches.sh --apply`
-3. Build: `./build_any.sh --port unix --variant standard` (unix) or `./build_any.sh --port espressif --board …` (embedded)
+3. Build: `./build_cp.sh --port unix --variant standard` (unix) or `./build_cp.sh --port espressif --board …` (embedded)
 4. REPL: `import lvgl; lvgl.init()` then spot-check one widget API.
 
 `circuitpython.mk` requires `generated/lvcp.c`; the build fails at make time if it is missing.
