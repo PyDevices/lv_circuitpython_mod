@@ -2,16 +2,12 @@
 # Apply (or preview) CircuitPython LVGL integration patches.
 #
 # Usage:
-#   ./apply_cp_lvgl_patches.sh --dry-run
-#   ./apply_cp_lvgl_patches.sh --apply
-#   ./apply_cp_lvgl_patches.sh --status
+#   ./apply_cp_lvgl_patches.sh --apply --port PORT [--board BOARD] [--variant VARIANT]
+#   ./apply_cp_lvgl_patches.sh --force-apply --port PORT ...   # reinstall (user only)
+#   ./apply_cp_lvgl_patches.sh --dry-run --port PORT ...
+#   ./apply_cp_lvgl_patches.sh --status --port PORT ...
 #
-# Environment:
-#   CP_DIR          CircuitPython tree (default: $WORKSPACE_DIR/circuitpython)
-#   WORKSPACE_DIR   Parent of lv_circuitpython_mod (default: parent of this repo)
-#   PORT            Port under ports/ (default: unix)
-#   VARIANT         Unix variant (default: coverage; ignored for espressif)
-#   BOARD           Espressif board id (default: espressif_esp32p4_function_ev; ignored for unix)
+# Environment: WORKSPACE_DIR, CP_DIR, PORT, BOARD, VARIANT
 
 set -euo pipefail
 
@@ -21,15 +17,50 @@ CP_DIR="${CP_DIR:-$WORKSPACE_DIR/circuitpython}"
 if [ ! -d "$CP_DIR/.git" ] && [ -d "$HOME/github/circuitpython/.git" ]; then
     CP_DIR="$HOME/github/circuitpython"
 fi
-PORT="${PORT:-unix}"
-VARIANT="${VARIANT:-coverage}"
-BOARD="${BOARD:-espressif_esp32p4_function_ev}"
+
+PORT="${PORT:-}"
+BOARD="${BOARD:-}"
+VARIANT="${VARIANT:-}"
+MODE=""
 SPIKE_DIR="$LV_CP_MOD_DIR/circuitpython_spike"
 SPIKE_MANIFEST="$SPIKE_DIR/copy_manifest.txt"
 
 MARKER_TAG="lv-circuitpython-mod begin (apply_cp_lvgl_patches.sh)"
 MARKER_BEGIN="# >>> $MARKER_TAG"
 MARKER_END="# >>> lv-circuitpython-mod end"
+
+DRY_RUN=0
+APPLY=0
+FORCE=0
+CONFIG_MKS=()
+CONFIG_HS=()
+
+die() { echo "error: $*" >&2; exit 1; }
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run|--apply|--force-apply|--status) MODE="$1"; shift ;;
+        --port)    PORT="$2"; shift 2 ;;
+        --board)   BOARD="$2"; shift 2 ;;
+        --variant) VARIANT="$2"; shift 2 ;;
+        -h|--help)
+            sed -n '2,12p' "$0"
+            exit 0
+            ;;
+        *) die "Unknown argument: $1 (try --help)" ;;
+    esac
+done
+
+MODE="${MODE:---dry-run}"
+case "$MODE" in
+    --dry-run) DRY_RUN=1 ;;
+    --apply) APPLY=1 ;;
+    --force-apply) APPLY=1; FORCE=1 ;;
+    --status) ;;
+    *) die "Unknown mode: $MODE" ;;
+esac
+
+log() { echo "$*"; }
 
 markers_for_file() {
     local file="$1"
@@ -73,52 +104,65 @@ PY
     log "  repaired header markers: $file"
 }
 
-MODE="${1:---dry-run}"
-case "$MODE" in
-    --dry-run|--apply|--status) ;;
-    -h|--help)
-        sed -n '2,16p' "$0"
-        exit 0
-        ;;
-    *)
-        echo "Usage: $0 [--dry-run|--apply|--status]"
-        exit 1
-        ;;
-esac
-
-DRY_RUN=0
-APPLY=0
-if [ "$MODE" = "--dry-run" ]; then DRY_RUN=1; fi
-if [ "$MODE" = "--apply" ]; then APPLY=1; fi
-
-log() { echo "$*"; }
-
-remove_legacy_patches() {
+remove_marked_blocks() {
     local file="$1"
+    local tag="$2"
     [ -f "$file" ] || return 0
-    if ! grep -qF "cmods-lvgl begin" "$file" 2>/dev/null; then
+    if ! grep -qF "$tag" "$file" 2>/dev/null; then
         return 0
     fi
     if [ "$DRY_RUN" = 1 ]; then
-        echo "  [dry-run] remove legacy cmods-lvgl block from $file"
+        echo "  [dry-run] remove marked blocks from $file"
         return 0
     fi
-    python3 - "$file" <<'PY'
+    python3 - "$file" "$tag" <<'PY'
 import re
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+tag = re.escape(sys.argv[2])
 text = path.read_text()
 patterns = [
-    r"\n?# >>> cmods-lvgl begin \(apply_cp_lvgl_patches\.sh\)\n.*?\n# >>> cmods-lvgl end\n?",
-    r"\n?/\* >>> cmods-lvgl begin \(apply_cp_lvgl_patches\.sh\) \*/\n.*?\n/\* >>> cmods-lvgl end \*/\n?",
+    rf"\n?# >>> {tag}\n.*?\n# >>> lv-circuitpython-mod end\n?",
+    rf"\n?/\* >>> {tag} \*/\n.*?\n/\* >>> lv-circuitpython-mod end \*/\n?",
 ]
 for pat in patterns:
-    text, n = re.subn(pat, "\n", text, count=1, flags=re.DOTALL)
+    text = re.sub(pat, "\n", text, count=0, flags=re.DOTALL)
 path.write_text(text)
 PY
-    log "  removed legacy cmods-lvgl block: $file"
+}
+
+remove_legacy_patches() {
+    remove_marked_blocks "$1" "cmods-lvgl begin (apply_cp_lvgl_patches.sh)"
+}
+
+remove_current_patches() {
+    remove_marked_blocks "$1" "$MARKER_TAG"
+}
+
+remove_raw_lvgl_lines() {
+    local file="$1"
+    [ -f "$file" ] || return 0
+    if ! grep -qF 'lvgl/__init__.c' "$file" 2>/dev/null; then
+        return 0
+    fi
+    if [ "$DRY_RUN" = 1 ]; then
+        echo "  [dry-run] remove raw lvgl source lines from $file"
+        return 0
+    fi
+    python3 - "$file" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+lines = [
+    line for line in path.read_text().splitlines(keepends=True)
+    if "lvgl/__init__.c" not in line
+]
+path.write_text("".join(lines))
+PY
+    log "  removed raw lvgl source lines: $file"
 }
 
 patch_block_present() {
@@ -127,13 +171,53 @@ patch_block_present() {
     [ -f "$file" ] && grep -qF "$needle" "$file"
 }
 
+should_skip_patch() {
+    local file="$1"
+    local needle="${2:-lv-circuitpython-mod begin}"
+    [ "$FORCE" = 0 ] && patch_block_present "$file" "$needle"
+}
+
+append_marked_block() {
+    local file="$1"
+    local block="$2"
+    local needle="${3:-lv-circuitpython-mod begin}"
+    repair_invalid_header_markers "$file"
+    if should_skip_patch "$file" "$needle"; then
+        log "  skip (already patched): $file"
+        return 0
+    fi
+    if [ "$DRY_RUN" = 1 ]; then
+        echo "  [dry-run] append block to $file"
+        return 0
+    fi
+    local begin end
+    begin=$(markers_for_file "$file" | sed -n '1p')
+    end=$(markers_for_file "$file" | sed -n '2p')
+    python3 - "$file" "$begin" "$end" "$block" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+begin = sys.argv[2]
+end = sys.argv[3]
+block = sys.argv[4]
+
+text = path.read_text()
+if not text.endswith("\n"):
+    text += "\n"
+text += f"{begin}\n{block}\n{end}\n"
+path.write_text(text)
+PY
+    log "  patched: $file"
+}
+
 insert_block_before_line() {
     local file="$1"
     local anchor="$2"
     local block="$3"
     local needle="${4:-lv-circuitpython-mod begin}"
     repair_invalid_header_markers "$file"
-    if patch_block_present "$file" "$needle"; then
+    if should_skip_patch "$file" "$needle"; then
         log "  skip (already patched): $file"
         return 0
     fi
@@ -162,6 +246,7 @@ if anchor not in text:
 insert = f"\n{begin}\n{block}\n{end}\n"
 path.write_text(text.replace(anchor, insert + anchor, 1))
 PY
+    log "  patched: $file"
 }
 
 insert_block_after_line() {
@@ -170,7 +255,7 @@ insert_block_after_line() {
     local block="$3"
     local needle="${4:-lv-circuitpython-mod begin}"
     repair_invalid_header_markers "$file"
-    if patch_block_present "$file" "$needle"; then
+    if should_skip_patch "$file" "$needle"; then
         log "  skip (already patched): $file"
         return 0
     fi
@@ -199,13 +284,14 @@ if anchor not in text:
 insert = f"\n{begin}\n{block}\n{end}\n"
 path.write_text(text.replace(anchor, anchor + insert, 1))
 PY
+    log "  patched: $file"
 }
 
 insert_raw_after_line() {
     local file="$1"
     local anchor="$2"
     local line="$3"
-    if grep -qF "$line" "$file" 2>/dev/null; then
+    if [ "$FORCE" = 0 ] && grep -qF "$line" "$file" 2>/dev/null; then
         log "  skip (already present): $file"
         return 0
     fi
@@ -228,6 +314,7 @@ if anchor not in text:
     raise SystemExit(f"anchor not found in {path}: {anchor!r}")
 path.write_text(text.replace(anchor, anchor + "\n" + line, 1))
 PY
+    log "  patched: $file"
 }
 
 copy_spike_files() {
@@ -271,46 +358,104 @@ for raw in Path(manifest).read_text().splitlines():
 PY
 }
 
+resolve_config_files() {
+    PORT_DIR="$CP_DIR/ports/$PORT"
+    [[ -n "$PORT" ]] || die "PORT is required (--port or env)"
+    [[ -f "$PORT_DIR/Makefile" ]] || die "Invalid port: $PORT"
+
+    CONFIG_MKS=()
+    CONFIG_HS=()
+
+    if [[ -n "$BOARD" && -f "$PORT_DIR/boards/$BOARD/mpconfigboard.mk" ]]; then
+        CONFIG_MKS+=("$PORT_DIR/boards/$BOARD/mpconfigboard.mk")
+        [[ -f "$PORT_DIR/boards/$BOARD/mpconfigboard.h" ]] && \
+            CONFIG_HS+=("$PORT_DIR/boards/$BOARD/mpconfigboard.h")
+    fi
+
+    local vdir=""
+    if [[ -n "$BOARD" && -n "$VARIANT" && -f "$PORT_DIR/boards/$BOARD/variants/$VARIANT/mpconfigvariant.mk" ]]; then
+        vdir="$PORT_DIR/boards/$BOARD/variants/$VARIANT"
+    elif [[ -n "$VARIANT" && -f "$PORT_DIR/variants/$VARIANT/mpconfigvariant.mk" ]]; then
+        vdir="$PORT_DIR/variants/$VARIANT"
+    fi
+    if [[ -n "$vdir" ]]; then
+        CONFIG_MKS+=("$vdir/mpconfigvariant.mk")
+        [[ -f "$vdir/mpconfigvariant.h" ]] && CONFIG_HS+=("$vdir/mpconfigvariant.h")
+    fi
+
+    [[ ${#CONFIG_MKS[@]} -gt 0 ]] || \
+        die "No mpconfig makefiles for PORT=$PORT BOARD=${BOARD:-} VARIANT=${VARIANT:-}"
+}
+
 port_makefile_anchor() {
-    if [ "$PORT" = "unix" ]; then
-        echo "include ../../py/mkenv.mk"
+    if grep -qF 'include ../../py/mkenv.mk' "$PORT_MK"; then
+        echo 'include ../../py/mkenv.mk'
+    elif grep -qF 'include ../../py/circuitpy_mkenv.mk' "$PORT_MK"; then
+        echo 'include ../../py/circuitpy_mkenv.mk'
     else
-        echo "include ../../py/circuitpy_mkenv.mk"
+        die "No known mkenv include anchor in $PORT_MK"
     fi
 }
 
-if [ ! -d "$CP_DIR/.git" ]; then
-    echo "CircuitPython tree not found at $CP_DIR"
-    echo "Set CP_DIR to your clone (e.g. CP_DIR=~/github/circuitpython)"
-    exit 1
-fi
+patch_config_header() {
+    local h="$1"
+    local block="#ifndef CIRCUITPY_LVGL
+#define CIRCUITPY_LVGL (0)
+#endif"
+    if grep -qF '#pragma once' "$h"; then
+        insert_block_after_line "$h" '#pragma once' "$block"
+    elif grep -qF '#include "../mpconfigvariant_common.h"' "$h"; then
+        insert_block_after_line "$h" '#include "../mpconfigvariant_common.h"' "$block"
+    else
+        log "  skip header (no known anchor): $h"
+    fi
+}
 
-if [ ! -f "$SPIKE_MANIFEST" ]; then
-    echo "Missing spike manifest: $SPIKE_MANIFEST" >&2
-    exit 1
-fi
+patch_module_sources_if_present() {
+    local mk="$1"
+    if grep -qF 'shared-bindings/jpegio/JpegDecoder.c \' "$mk"; then
+        insert_raw_after_line "$mk" $'shared-bindings/jpegio/JpegDecoder.c \\' \
+            $'\tshared-bindings/lvgl/__init__.c \\'
+        insert_raw_after_line "$mk" $'shared-module/jpegio/JpegDecoder.c \\' \
+            $'\tshared-module/lvgl/__init__.c \\'
+    else
+        log "  skip module sources (no jpegio list in $mk)"
+    fi
+}
 
-PORT_DIR="$CP_DIR/ports/$PORT"
-BOARD_MK="$PORT_DIR/boards/$BOARD/mpconfigboard.mk"
-BOARD_H="$PORT_DIR/boards/$BOARD/mpconfigboard.h"
-VARIANT_MK="$PORT_DIR/variants/$VARIANT/mpconfigvariant.mk"
-VARIANT_H="$PORT_DIR/variants/$VARIANT/mpconfigvariant.h"
+build_next_cmd() {
+    local -a cmd=("$LV_CP_MOD_DIR/build_any.sh" --port "$PORT")
+    [[ -n "$BOARD" ]] && cmd+=(--board "$BOARD")
+    [[ -n "$VARIANT" ]] && cmd+=(--variant "$VARIANT")
+    printf '%q ' "${cmd[@]}"
+}
+
+collect_patch_files() {
+    ALL_PATCH_FILES=("$PORT_MK" "$MPCONFIG_MK" "$DEFNS_MK")
+    ALL_PATCH_FILES+=("${CONFIG_MKS[@]}")
+    ALL_PATCH_FILES+=("${CONFIG_HS[@]}")
+}
+
+# --- main ---
+
+[ -d "$CP_DIR/.git" ] || die "CircuitPython tree not found at $CP_DIR"
+[ -f "$SPIKE_MANIFEST" ] || die "Missing spike manifest: $SPIKE_MANIFEST"
+
+resolve_config_files
+
 DEFNS_MK="$CP_DIR/py/circuitpy_defns.mk"
 MPCONFIG_MK="$CP_DIR/py/circuitpy_mpconfig.mk"
 PORT_MK="$PORT_DIR/Makefile"
-
 LV_CP_MOD_REL=$(python3 -c "import os; print(os.path.relpath('$LV_CP_MOD_DIR', '$PORT_DIR'))")
+collect_patch_files
 
 log "CircuitPython: $CP_DIR"
 log "workspace:     $WORKSPACE_DIR"
 log "lv_circuitpython_mod: $LV_CP_MOD_DIR (as $LV_CP_MOD_REL from port)"
-log "port:          $PORT"
-if [ "$PORT" = "unix" ]; then
-    log "variant:       $VARIANT"
-else
-    log "board:         $BOARD"
-fi
-log "mode:          $MODE"
+log "port:            $PORT"
+[[ -n "$BOARD" ]] && log "board:           $BOARD"
+[[ -n "$VARIANT" ]] && log "variant:         $VARIANT"
+log "mode:            $MODE"
 log
 
 if [ "$MODE" = "--status" ]; then
@@ -340,39 +485,31 @@ PY
         fi
     }
     report spike "$SPIKE_INIT_C"
-    if [ "$PORT" = "unix" ]; then
-        report patch "$VARIANT_MK"
-        if [ -f "$VARIANT_H" ]; then
-            report patch "$VARIANT_H"
-        fi
-    else
-        report patch "$BOARD_MK"
-        if [ -f "$BOARD_H" ]; then
-            report patch "$BOARD_H"
-        fi
-    fi
+    for mk in "${CONFIG_MKS[@]}"; do report patch "$mk"; done
+    for h in "${CONFIG_HS[@]}"; do report patch "$h"; done
     report patch "$DEFNS_MK"
     report patch "$MPCONFIG_MK"
     report patch "$PORT_MK"
     exit 0
 fi
 
+if [ "$FORCE" = 1 ]; then
+    log "==> Remove existing LVGL patches (force reinstall)"
+    for _f in "${ALL_PATCH_FILES[@]}"; do
+        remove_current_patches "$_f"
+        remove_legacy_patches "$_f"
+        remove_raw_lvgl_lines "$_f"
+    done
+    log
+fi
+
 log "==> Copy spike templates"
 copy_spike_files
 log
 
-LEGACY_FILES=(
-    "$PORT_MK"
-    "$VARIANT_MK"
-    "$VARIANT_H"
-    "$MPCONFIG_MK"
-    "$DEFNS_MK"
-    "$BOARD_MK"
-    "$BOARD_H"
-)
 if [ "$APPLY" = 1 ] || [ "$DRY_RUN" = 1 ]; then
     log "==> Remove legacy cmods-lvgl patches (if present)"
-    for _legacy in "${LEGACY_FILES[@]}"; do
+    for _legacy in "${ALL_PATCH_FILES[@]}"; do
         remove_legacy_patches "$_legacy"
     done
     log
@@ -382,56 +519,18 @@ LVGL_ENABLE_BLOCK="CIRCUITPY_LVGL = 1
 CFLAGS += -DCIRCUITPY_LVGL=1
 CFLAGS += -DLVGL_GENERATED_PHASE1=1"
 
-variant_mk_anchor() {
-    if [ "$VARIANT" = "coverage" ]; then
-        echo $'-DCIRCUITPY_ZLIB=1'
-    elif [ "$VARIANT" = "standard" ]; then
-        echo 'FROZEN_MANIFEST ?= $(VARIANT_DIR)/manifest.py'
-    else
-        echo $'-DCIRCUITPY_LOCALE=1 \\'
-    fi
-}
+for mk in "${CONFIG_MKS[@]}"; do
+    log "==> Patch $(basename "$(dirname "$mk")")/$(basename "$mk")"
+    append_marked_block "$mk" "$LVGL_ENABLE_BLOCK"
+    patch_module_sources_if_present "$mk"
+    log
+done
 
-if [ "$PORT" = "unix" ]; then
-    log "==> Patch unix variant mpconfigvariant.mk"
-    if [ ! -f "$VARIANT_MK" ]; then
-        echo "Variant makefile not found: $VARIANT_MK" >&2
-        exit 1
-    fi
-    insert_block_after_line "$VARIANT_MK" "$(variant_mk_anchor)" "$LVGL_ENABLE_BLOCK"
+for h in "${CONFIG_HS[@]}"; do
+    log "==> Patch $(basename "$h")"
+    patch_config_header "$h"
     log
-
-    log "==> Patch unix variant mpconfigvariant.mk (module sources)"
-    insert_raw_after_line "$VARIANT_MK" $'shared-bindings/jpegio/JpegDecoder.c \\' $'\tshared-bindings/lvgl/__init__.c \\'
-    insert_raw_after_line "$VARIANT_MK" $'shared-module/jpegio/JpegDecoder.c \\' $'\tshared-module/lvgl/__init__.c \\'
-    log
-
-    log "==> Patch unix variant mpconfigvariant.h (ifndef guard)"
-    if [ -f "$VARIANT_H" ]; then
-        VARIANT_H_BLOCK="#ifndef CIRCUITPY_LVGL
-#define CIRCUITPY_LVGL (0)
-#endif"
-        insert_block_after_line "$VARIANT_H" '#include "../mpconfigvariant_common.h"' "$VARIANT_H_BLOCK"
-    fi
-    log
-else
-    log "==> Patch board mpconfigboard.mk"
-    if [ ! -f "$BOARD_MK" ]; then
-        echo "Board makefile not found: $BOARD_MK" >&2
-        exit 1
-    fi
-    insert_block_after_line "$BOARD_MK" "CIRCUITPY_ESP_PSRAM_FREQ = 200m" "$LVGL_ENABLE_BLOCK"
-    log
-
-    log "==> Patch board mpconfigboard.h (ifndef guard)"
-    if [ -f "$BOARD_H" ]; then
-        BOARD_H_BLOCK="#ifndef CIRCUITPY_LVGL
-#define CIRCUITPY_LVGL (0)
-#endif"
-        insert_block_after_line "$BOARD_H" "#pragma once" "$BOARD_H_BLOCK"
-    fi
-    log
-fi
+done
 
 log "==> Patch py/circuitpy_mpconfig.mk (default off)"
 MPCONFIG_BLOCK="CIRCUITPY_LVGL ?= 0
@@ -444,15 +543,13 @@ DEFNS_PATTERNS_BLOCK="ifeq (\$(CIRCUITPY_LVGL),1)
 SRC_PATTERNS += lvgl/%
 endif"
 insert_block_before_line "$DEFNS_MK" "ifeq (\$(CIRCUITPY_MATH),1)" "$DEFNS_PATTERNS_BLOCK" "SRC_PATTERNS += lvgl/%"
-
 insert_raw_after_line "$DEFNS_MK" $'\tjpegio/JpegDecoder.c \\' $'\tlvgl/__init__.c \\'
 log
 
 log "==> Patch port Makefile (circuitpython.mk)"
 PORT_BLOCK="LV_CP_MOD_DIR := \$(abspath $LV_CP_MOD_REL)
 include \$(LV_CP_MOD_DIR)/circuitpython.mk"
-PORT_ANCHOR=$(port_makefile_anchor)
-insert_block_after_line "$PORT_MK" "$PORT_ANCHOR" "$PORT_BLOCK"
+insert_block_after_line "$PORT_MK" "$(port_makefile_anchor)" "$PORT_BLOCK"
 log
 
 if [ "$DRY_RUN" = 1 ]; then
@@ -462,6 +559,5 @@ elif [ "$APPLY" = 1 ]; then
     log
     log "Next:"
     log "  $WORKSPACE_DIR/lv_bindings/regenerate_lvcp.sh"
-    log "  $LV_CP_MOD_DIR/build_cp_unix.sh"
-    log "  # embedded (future): PORT=espressif BOARD=espressif_esp32p4_function_ev $0 --apply"
+    log "  $(build_next_cmd)"
 fi

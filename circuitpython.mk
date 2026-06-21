@@ -35,7 +35,7 @@ $(BUILD)/shared-module/lvgl/%.o: CFLAGS += -I$(LV_BINDINGS_DIR) -I$(LVGL_DIR)
 # LVGL + generated bindings: suppress -Werror noise from upstream/generated C.
 LVGL_SUPPRESS_CFLAGS := -Wno-cast-align -Wno-nested-externs -Wno-unused-parameter \
 	-Wno-sign-compare -Wno-missing-prototypes -Wno-old-style-definition \
-	-Wno-float-conversion -Wno-double-promotion -Wno-shadow
+	-Wno-float-conversion -Wno-double-promotion -Wno-shadow -Wno-type-limits
 $(foreach _lvsrc,$(CMODS_LVGL_SOURCES),$(eval $(BUILD)/$(_lvsrc:.c=.o): CFLAGS += $(LVGL_SUPPRESS_CFLAGS)))
 $(foreach _lvsrc,$(CMODS_LV_SOURCES),$(eval $(BUILD)/$(_lvsrc:.c=.o): CFLAGS += $(LVGL_SUPPRESS_CFLAGS)))
 

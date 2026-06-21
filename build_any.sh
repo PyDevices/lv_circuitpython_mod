@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+# Build any CircuitPython port/board/variant.
+#
+# Usage:
+#   ./build_any.sh [--port PORT] [--board BOARD] [--variant VARIANT]
+#
+# Environment: WORKSPACE_DIR, CP_DIR, PORT, BOARD, VARIANT, CP_BUILD_VENV
+# Runs apply_cp_lvgl_patches.sh --apply before building (does not regenerate bindings).
+# Creates $SCRIPT_DIR/.venv and installs circuitpython/requirements-dev.txt if needed.
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+BUILD_ANY="${BUILD_ANY:-$SCRIPT_DIR/build_any.sh}"
+WORKSPACE_DIR="${WORKSPACE_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+CP_DIR="${CP_DIR:-$WORKSPACE_DIR/circuitpython}"
+
+PORT="${PORT:-}"
+BOARD="${BOARD:-}"
+VARIANT="${VARIANT:-}"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --port)    PORT="$2"; shift 2 ;;
+        --board)   BOARD="$2"; shift 2 ;;
+        --variant) VARIANT="$2"; shift 2 ;;
+        -h|--help)
+            echo "Usage: $0 [--port PORT] [--board BOARD] [--variant VARIANT]"
+            exit 0
+            ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+    esac
+done
+
+[[ -d "$CP_DIR/ports" ]] || { echo "CircuitPython not found: $CP_DIR" >&2; exit 1; }
+
+CP_REQUIREMENTS_DEV="${CP_REQUIREMENTS_DEV:-$CP_DIR/requirements-dev.txt}"
+CP_BUILD_VENV="${CP_BUILD_VENV:-$SCRIPT_DIR/.venv}"
+
+ensure_espressif_env() {
+    [[ "$PORT" == espressif ]] || return 0
+
+    local idf_export="$PORT_DIR/esp-idf/export.sh"
+    [[ -f "$idf_export" ]] || {
+        echo "ESP-IDF export script not found: $idf_export" >&2
+        exit 1
+    }
+
+    echo "Activating ESP-IDF environment..."
+    # shellcheck disable=SC1090
+    if ! . "$idf_export"; then
+        echo "Failed to activate ESP-IDF. Install tools with:" >&2
+        echo "  cd $PORT_DIR/esp-idf && ./install.sh" >&2
+        exit 1
+    fi
+}
+
+ensure_cp_python_env() {
+    [[ -f "$CP_REQUIREMENTS_DEV" ]] || {
+        echo "CircuitPython dev requirements not found: $CP_REQUIREMENTS_DEV" >&2
+        exit 1
+    }
+
+    if [[ ! -d "$CP_BUILD_VENV" ]]; then
+        echo "Creating Python venv: $CP_BUILD_VENV"
+        python3 -m venv "$CP_BUILD_VENV"
+    fi
+
+    echo "Ensuring CircuitPython dev requirements in venv..."
+    if ! "$CP_BUILD_VENV/bin/pip" install -r "$CP_REQUIREMENTS_DEV"; then
+        echo "Failed to install dev requirements." >&2
+        echo "If minify_html failed, install Rust (see $CP_DIR/BUILDING.md)." >&2
+        exit 1
+    fi
+
+    export PATH="$CP_BUILD_VENV/bin:$PATH"
+}
+
+pick() {
+    local label="$1"; shift
+    local -a items=("$@")
+    local n i
+
+    # Menu on stderr so stdout is only the chosen value (for VAR=$(pick ...)).
+    echo >&2
+    echo "$label" >&2
+    for i in "${!items[@]}"; do
+        printf '  %2d) %s\n' "$((i + 1))" "${items[$i]}" >&2
+    done
+    while true; do
+        read -r -p "Select [1-${#items[@]}]: " n
+        if [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 1 && n <= ${#items[@]} )); then
+            echo "${items[$((n - 1))]}"
+            return
+        fi
+        echo "Invalid selection." >&2
+    done
+}
+
+list_ports() {
+    local p
+    for p in "$CP_DIR"/ports/*; do
+        [[ -f "$p/Makefile" ]] && basename "$p"
+    done
+}
+
+list_boards() {
+    local port_dir="$CP_DIR/ports/$PORT" d
+    for d in "$port_dir/boards"/*; do
+        [[ -f "$d/mpconfigboard.mk" ]] && basename "$d"
+    done
+}
+
+variants_dir() {
+    local port_dir="$CP_DIR/ports/$PORT"
+    if [[ -n "$BOARD" && -d "$port_dir/boards/$BOARD/variants" ]]; then
+        echo "$port_dir/boards/$BOARD/variants"
+    elif [[ -d "$port_dir/variants" ]]; then
+        echo "$port_dir/variants"
+    fi
+}
+
+list_variants() {
+    local dir="$1" d
+    for d in "$dir"/*; do
+        [[ -f "$d/mpconfigvariant.mk" ]] && basename "$d"
+    done
+}
+
+print_rerun_hint() {
+    local -a cmd=("$BUILD_ANY")
+    cmd+=(--port "$PORT")
+    [[ -n "$BOARD" ]] && cmd+=(--board "$BOARD")
+    [[ -n "$VARIANT" ]] && cmd+=(--variant "$VARIANT")
+
+    local reset="" bold="" cyan=""
+    if [[ -t 1 ]]; then
+        reset=$(tput sgr0)
+        bold=$(tput bold)
+        cyan=$(tput setaf 6)
+    fi
+
+    printf '\n\n'
+    printf '%s%sRun again without prompts:%s\n' "$bold" "$cyan" "$reset"
+    printf '  %s\n' "$(printf '%q ' "${cmd[@]}")"
+    printf '\n\n'
+}
+
+print_make_commands() {
+    local -a args=()
+    [[ -n "$BOARD" ]] && args+=(BOARD="$BOARD")
+    [[ -n "$VARIANT" ]] && args+=(VARIANT="$VARIANT")
+
+    local reset="" bold="" yellow="" dim=""
+    if [[ -t 1 ]]; then
+        reset=$(tput sgr0)
+        bold=$(tput bold)
+        yellow=$(tput setaf 3)
+        dim=$(tput dim)
+    fi
+
+    local quoted=""
+    if [[ ${#args[@]} -gt 0 ]]; then
+        quoted=" $(printf '%q ' "${args[@]}")"
+    fi
+
+    printf '\n\n'
+    printf '%s%sRun make manually:%s\n' "$bold" "$yellow" "$reset"
+    printf '%s  cd %q%s\n' "$dim" "$PORT_DIR" "$reset"
+    if [[ "$PORT" == espressif ]]; then
+        printf '%s  . ./esp-idf/export.sh%s\n' "$dim" "$reset"
+    fi
+    printf '%s  make -j clean%s%s\n' "$dim" "$quoted" "$reset"
+    printf '%s  make -j submodules%s%s\n' "$dim" "$quoted" "$reset"
+    printf '%s  make -j%s%s\n' "$dim" "$quoted" "$reset"
+    printf '\n\n'
+}
+
+run_lvgl_patches() {
+    local -a apply_args=(--apply --port "$PORT")
+    [[ -n "$BOARD" ]] && apply_args+=(--board "$BOARD")
+    [[ -n "$VARIANT" ]] && apply_args+=(--variant "$VARIANT")
+
+    "$SCRIPT_DIR/apply_cp_lvgl_patches.sh" "${apply_args[@]}"
+}
+
+build_dir() {
+    if [[ -n "$VARIANT" ]]; then
+        echo "$PORT_DIR/build-$VARIANT"
+    elif [[ -n "$BOARD" ]]; then
+        echo "$PORT_DIR/build-$BOARD"
+    fi
+}
+
+print_build_outputs() {
+    local dir
+    dir=$(build_dir)
+    [[ -n "$dir" && -d "$dir" ]] || return 0
+
+    local -a outputs=()
+    local name f
+    for name in firmware.uf2 firmware.bin micropython circuitpython.uf2; do
+        f="$dir/$name"
+        [[ -f "$f" ]] && outputs+=("$f")
+    done
+
+    if [[ ${#outputs[@]} -eq 0 ]]; then
+        while IFS= read -r -d '' f; do
+            outputs+=("$f")
+        done < <(find "$dir" -maxdepth 1 -type f \( -name 'firmware.*' -o -name '*.uf2' \) -print0 2>/dev/null | sort -z)
+    fi
+
+    [[ ${#outputs[@]} -gt 0 ]] || return 0
+
+    echo
+    echo "Build output:"
+    for f in "${outputs[@]}"; do
+        echo "  $f"
+    done
+    echo
+}
+
+# 1) Port
+if [[ -z "$PORT" ]]; then
+    mapfile -t _ports < <(list_ports | sort)
+    [[ ${#_ports[@]} -gt 0 ]] || { echo "No ports found." >&2; exit 1; }
+    PORT=$(pick "Ports:" "${_ports[@]}")
+fi
+PORT_DIR="$CP_DIR/ports/$PORT"
+[[ -f "$PORT_DIR/Makefile" ]] || { echo "Invalid port: $PORT" >&2; exit 1; }
+
+# 2) Board (only if this port has boards)
+mapfile -t _boards < <(list_boards | sort)
+if [[ ${#_boards[@]} -gt 0 && -z "$BOARD" ]]; then
+    BOARD=$(pick "Boards for $PORT:" "${_boards[@]}")
+fi
+
+# 3) Variant (only if a variants directory exists)
+if _vdir=$(variants_dir); then
+    mapfile -t _variants < <(list_variants "$_vdir" | sort)
+    if [[ ${#_variants[@]} -gt 0 && -z "$VARIANT" ]]; then
+        VARIANT=$(pick "Variants:" "${_variants[@]}")
+    fi
+fi
+
+run_lvgl_patches
+print_rerun_hint
+print_make_commands
+
+make_args=()
+[[ -n "$BOARD" ]] && make_args+=(BOARD="$BOARD")
+[[ -n "$VARIANT" ]] && make_args+=(VARIANT="$VARIANT")
+
+ensure_cp_python_env
+ensure_espressif_env
+
+echo "Building: port=$PORT${BOARD:+ board=$BOARD}${VARIANT:+ variant=$VARIANT}"
+echo
+
+pushd "$PORT_DIR" >/dev/null
+make -j clean "${make_args[@]}"
+make -j submodules "${make_args[@]}"
+make -j "${make_args[@]}"
+popd >/dev/null
+
+print_build_outputs
