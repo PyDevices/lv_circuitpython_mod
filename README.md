@@ -2,7 +2,7 @@
 
 CircuitPython integration for LVGL: tree patches, build glue, spike templates, and tests.
 
-Requires sibling clones of [lv_bindings](https://github.com/PyDevices/lv_bindings) (generated `lvcp.c`) and [circuitpython](https://github.com/adafruit/circuitpython) (pin **10.2.1**).
+Requires sibling clones of [lv_bindings](https://github.com/PyDevices/lv_bindings) (generated `lvcp.c`) and [circuitpython](https://github.com/adafruit/circuitpython). Check out a [stable release tag](https://github.com/adafruit/circuitpython/releases) — pick the version yourself; this repo does not track a specific CircuitPython version.
 
 ## Workspace layout
 
@@ -20,14 +20,13 @@ Or clone into [cmods](https://github.com/PyDevices/cmods) when using the optiona
 ## First-time setup
 
 ```bash
-git clone git@github.com:adafruit/circuitpython.git circuitpython
+# Pick a stable release tag from https://github.com/adafruit/circuitpython/releases
+git clone --branch 10.2.1 https://github.com/adafruit/circuitpython.git circuitpython
 cd circuitpython
-git fetch --tags
-git checkout -B circuitpython-10.2.1 10.2.1
 make fetch-all-submodules
 cd ..
 
-git clone git@github.com:PyDevices/lv_bindings.git lv_bindings
+git clone https://github.com/PyDevices/lv_bindings.git lv_bindings
 cd lv_bindings
 git submodule update --init lvgl
 python3 -m venv .venv
@@ -45,7 +44,7 @@ Install system build tools and cross-compilers **before** using `build_cp.sh`. F
 
 Typical Linux setup includes packages such as `build-essential`, `cmake`, `python3`, and port-specific tools (for example `gcc-arm-none-eabi` and related newlib packages for `raspberrypi`). Exact packages depend on the port you build.
 
-CircuitPython **10.2.x** requires **GCC 14** or newer when compiling firmware. Check the compiler your port uses (for embedded boards, usually `arm-none-eabi-gcc --version`). Ubuntu’s `gcc-arm-none-eabi` package is often GCC 13 — too old for current CircuitPython.
+Current stable CircuitPython releases require **GCC 14** or newer when compiling firmware. Check the compiler your port uses (for embedded boards, usually `arm-none-eabi-gcc --version`). Ubuntu’s `gcc-arm-none-eabi` package is often GCC 13 — too old for current CircuitPython.
 
 Install a **system-wide** Arm GNU Toolchain 14+ (not under your home directory or this repo). Example on Linux:
 
