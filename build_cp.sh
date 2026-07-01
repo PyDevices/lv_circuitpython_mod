@@ -5,7 +5,7 @@
 #   ./build_cp.sh [--port PORT] [--board BOARD] [--variant VARIANT]
 #
 # Environment: WORKSPACE_DIR, CP_DIR, PORT, BOARD, VARIANT, CP_BUILD_VENV
-# Runs apply_cp_lvgl_patches.sh --apply before building (does not regenerate bindings).
+# Runs apply_cp_lvgl_patches.sh and usdl2 apply_cp_unix_usdl_patches.sh (unix) before building.
 # Creates $SCRIPT_DIR/.venv and installs circuitpython/requirements-dev.txt if needed.
 set -euo pipefail
 
@@ -175,6 +175,22 @@ print_make_commands() {
     printf '\n\n'
 }
 
+run_usdl2_patches() {
+    [[ "$PORT" == unix ]] || return 0
+    local usdl2_patch="$WORKSPACE_DIR/usdl2/apply_cp_unix_usdl_patches.sh"
+    [[ -x "$usdl2_patch" ]] || {
+        echo "usdl2 patch script not found: $usdl2_patch" >&2
+        echo "Clone https://github.com/PyDevices/usdl2 into the cmods workspace." >&2
+        exit 1
+    }
+    local -a patch_args=(--apply)
+    if [[ -n "$VARIANT" ]]; then
+        VARIANT="$VARIANT" "$usdl2_patch" "${patch_args[@]}"
+    else
+        "$usdl2_patch" "${patch_args[@]}"
+    fi
+}
+
 run_lvgl_patches() {
     local -a apply_args=(--apply --port "$PORT")
     [[ -n "$BOARD" ]] && apply_args+=(--board "$BOARD")
@@ -242,6 +258,7 @@ if _vdir=$(variants_dir); then
     fi
 fi
 
+run_usdl2_patches
 run_lvgl_patches
 print_rerun_hint
 print_make_commands

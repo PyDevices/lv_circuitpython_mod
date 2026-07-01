@@ -2,7 +2,7 @@
 """LVGL binding smoke tests for CircuitPython unix port.
 
 Run:
-  ./circuitpython/ports/unix/build-coverage/micropython ./lv_micropython_cmod/test_lvgl_cp_unix.py
+  ./circuitpython/ports/unix/build-coverage/micropython ./lv_circuitpython_mod/test_lvgl_cp_unix.py
 
 Exercises init, minimal display, widgets, event callbacks, and GC visibility
 (see docs/lvgl/gc_callback_audit.md).
