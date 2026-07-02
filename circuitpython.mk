@@ -6,13 +6,13 @@
 #   include $(LV_CP_MOD_DIR)/circuitpython.mk
 #
 # Requires:
-#   - lv_bindings/generated/lvcp.c (run lv_bindings/regenerate_lvcp.sh)
+#   - lv_bindings/generated/lvgl_circuitpython.c (run lv_bindings/regenerate_lvcp.sh)
 #   - CIRCUITPY_LVGL=1 in port config (unix variant or board mpconfigboard.mk)
 
 LV_CP_MOD_DIR ?= $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 LV_BINDINGS_DIR ?= $(abspath $(LV_CP_MOD_DIR)/../lv_bindings)
 LVGL_DIR := $(LV_BINDINGS_DIR)/lvgl
-LVCP_C := $(LV_BINDINGS_DIR)/generated/lvcp.c
+LVCP_C := $(LV_BINDINGS_DIR)/generated/lvgl_circuitpython.c
 
 CMODS_LVGL_SOURCES := $(shell find $(LVGL_DIR)/src -type f -name '*.c')
 # CP coverage (and jpegio) already link lib/tjpgd; LVGL's copy uses incompatible tjpgdcnf.
@@ -46,4 +46,4 @@ SRC_C += $(CMODS_LVGL_SOURCES) $(CMODS_LV_SOURCES)
 
 # Hand-written module registration lives in the CP tree:
 #   shared-bindings/lvgl/__init__.c  (spike; see docs/circuitpython_spike.md)
-# Generated API surface is in generated/lvcp.c; merge via LVCP_MODULE_GLOBALS in __init__.c.
+# Generated API surface is in generated/lvgl_circuitpython.c; merge via LVCP_MODULE_GLOBALS in __init__.c.

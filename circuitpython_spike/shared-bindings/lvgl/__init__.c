@@ -1,11 +1,11 @@
 // Copy to circuitpython/shared-bindings/lvgl/__init__.c
 //
-// init/deinit callables here; module dict + bindings live in generated/lvcp.c.
+// module dict + bindings live in generated/lvgl_circuitpython.c.
 
 #include "py/runtime.h"
 #include "py/obj.h"
 #include "shared-bindings/lvgl/__init__.h"
-#include "generated/lvcp_module_globals.h"
+#include "generated/lvgl_circuitpython.h"
 
 extern void mp_lv_deinit_gc(void);
 
