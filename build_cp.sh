@@ -145,8 +145,18 @@ print_rerun_hint() {
     printf '\n\n'
 }
 
+cp_user_config_make_opts() {
+    CP_USER_CONFIG="${CP_USER_CONFIG:-$WORKSPACE_DIR/cp-user-config}"
+    if [[ -d "$CP_USER_CONFIG" ]]; then
+        printf '%s' "-I $(cd "$CP_USER_CONFIG" && pwd)"
+    fi
+}
+
 print_make_commands() {
     local -a args=()
+    local user_config
+    user_config=$(cp_user_config_make_opts)
+    [[ -n "$user_config" ]] && args+=("$user_config")
     [[ -n "$BOARD" ]] && args+=(BOARD="$BOARD")
     [[ -n "$VARIANT" ]] && args+=(VARIANT="$VARIANT")
 
@@ -264,6 +274,8 @@ print_rerun_hint
 print_make_commands
 
 make_args=()
+user_config=$(cp_user_config_make_opts)
+[[ -n "$user_config" ]] && make_args+=("$user_config")
 [[ -n "$BOARD" ]] && make_args+=(BOARD="$BOARD")
 [[ -n "$VARIANT" ]] && make_args+=(VARIANT="$VARIANT")
 
@@ -271,6 +283,7 @@ ensure_cp_python_env
 ensure_espressif_env
 
 echo "Building: port=$PORT${BOARD:+ board=$BOARD}${VARIANT:+ variant=$VARIANT}"
+[[ -n "$user_config" ]] && echo "User config: -I ${CP_USER_CONFIG:-$WORKSPACE_DIR/cp-user-config}"
 echo
 
 pushd "$PORT_DIR" >/dev/null
