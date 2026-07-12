@@ -17,7 +17,7 @@ workspace/
 
 ([cmods](https://github.com/PyDevices/cmods) is an optional convenience workspace that sets up this same sibling layout — not required.)
 
-## First-time setup
+## 🚀 First-time setup
 
 ```bash
 # Pick a stable release tag from https://github.com/adafruit/circuitpython/releases
