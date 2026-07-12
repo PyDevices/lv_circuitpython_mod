@@ -190,7 +190,7 @@ run_usdl2_patches() {
     local usdl2_patch="$WORKSPACE_DIR/usdl2/apply_cp_unix_usdl_patches.sh"
     [[ -x "$usdl2_patch" ]] || {
         echo "usdl2 patch script not found: $usdl2_patch" >&2
-        echo "Clone https://github.com/PyDevices/usdl2 into the cmods workspace." >&2
+        echo "Clone https://github.com/PyDevices/usdl2 as a sibling of lv_circuitpython_mod (WORKSPACE_DIR=$WORKSPACE_DIR)." >&2
         exit 1
     }
     local -a patch_args=(--apply)

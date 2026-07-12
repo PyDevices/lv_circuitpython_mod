@@ -38,14 +38,14 @@ Firmware partition size on ESP32 CP boards is typically **~2–4 MB** for the fa
 Both routes use the same `lv_conf.h` switch:
 
 ```c
-#if defined(CMODS_CIRCUITPYTHON_BUILD)
+#if defined(LV_CIRCUITPYTHON_BUILD)
 #define LV_USE_STDLIB_MALLOC LV_STDLIB_CIRCUITPYTHON_OVERRIDE  /* 253 */
 #else
 #define LV_USE_STDLIB_MALLOC LV_STDLIB_MICROPYTHON_OVERRIDE  /* 254 */
 #endif
 ```
 
-`circuitpython.mk` sets `-DCMODS_CIRCUITPYTHON_BUILD=1` and compiles `lv_mem_core_circuitpython.c`.
+`circuitpython.mk` sets `-DLV_CIRCUITPYTHON_BUILD=1` and compiles `lv_mem_core_circuitpython.c`.
 
 | API | MicroPython (`lv_mem_core_micropython.c`) | CircuitPython (draft) |
 |-----|-------------------------------------------|------------------------|

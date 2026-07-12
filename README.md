@@ -15,7 +15,7 @@ workspace/
   circuitpython/
 ```
 
-Or clone into [cmods](https://github.com/PyDevices/cmods) when using the optional MP wrapper (`cmods/` becomes the workspace).
+([cmods](https://github.com/PyDevices/cmods) is an optional convenience workspace that sets up this same sibling layout — not required.)
 
 ## First-time setup
 
