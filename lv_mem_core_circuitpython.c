@@ -64,7 +64,11 @@ void lv_mem_remove_pool(lv_mem_pool_t pool)
 void *lv_malloc_core(size_t size)
 {
 #if MICROPY_MALLOC_USES_ALLOCATED_SIZE
-    return gc_alloc(size, true);
+    /* LVGL blocks are raw C memory, not Python objects. Do NOT set the
+     * has-finaliser flag: gc_sweep_run_finalisers() would otherwise call
+     * __del__ on these blocks at GC teardown (e.g. interpreter shutdown),
+     * dereferencing a bogus mp_obj type pointer and crashing (SIGSEGV). */
+    return gc_alloc(size, false);
 #else
     return m_malloc(size);
 #endif
