@@ -33,9 +33,11 @@
   </header>
 
   <section class="hero wrap">
+    <div class="logo-badge"><img src="https://pydevices.github.io/assets/img/logo.svg" alt="PyDevices logo" width="112" height="112"></div>
     <span class="eyebrow">PyDevices / lv_circuitpython_mod</span>
     <h1>CircuitPython integration for LVGL</h1>
-    <p>CircuitPython integration for LVGL — tree patches, build glue, and tests.</p>
+    <p>lv_circuitpython_mod carries the CircuitPython-side integration for LVGL: tree patches, build glue, and tests that consume the CircuitPython artifacts from lv_bindings. It is how <code>import lvgl</code> becomes a CircuitPython-friendly native module instead of a MicroPython-only usermod.</p>
+    <p>Work here when CircuitPython&apos;s module layout or build system needs LVGL-specific wiring. Pair it with a regenerated lv_bindings CircuitPython output and the cmods <code>cp-unix</code> path (or this repo&apos;s <code>build_cp.sh</code>) to verify the coverage build still smoke-tests cleanly.</p>
     <div class="cta">
       <a class="btn primary" href="https://github.com/PyDevices/lv_circuitpython_mod">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.9a3.4 3.4 0 0 0-1-2.6c3-.3 6-1.5 6-6.5a5 5 0 0 0-1.4-3.5 4.6 4.6 0 0 0-.1-3.5s-1.1-.3-3.5 1.3a12 12 0 0 0-6 0C6.6 1.7 5.5 2 5.5 2a4.6 4.6 0 0 0-.1 3.5A5 5 0 0 0 4 9c0 5 3 6.2 6 6.5a3.4 3.4 0 0 0-1 2.6V22"/></svg>
