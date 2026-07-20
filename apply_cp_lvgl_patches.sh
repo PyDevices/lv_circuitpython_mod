@@ -8,6 +8,13 @@
 #   ./apply_cp_lvgl_patches.sh --status --port PORT ...
 #
 # Environment: WORKSPACE_DIR, CP_DIR, PORT, BOARD, VARIANT
+#
+# All-port requirements (unix, espressif, …) — not ESP-specific:
+#   1. include lv_circuitpython_mod/circuitpython.mk from the port Makefile
+#   2. SRC_QSTR excludes $(LV_CP_LVGL_SOURCES) (LVGL .c has no MP_QSTR_*; avoids ARG_MAX)
+#   3. CIRCUITPY_GIFIO=0 when CIRCUITPY_LVGL=1 (lv_bindings lv_conf.h has LV_USE_GIF=1;
+#      CircuitPython GIFIO vendors a colliding AnimatedGIF gif.c)
+# No lv_bindings generator changes are required for those constraints.
 
 set -euo pipefail
 
@@ -490,6 +497,23 @@ PY
     report patch "$DEFNS_MK"
     report patch "$MPCONFIG_MK"
     report patch "$PORT_MK"
+    # All-port LVGL build contracts (see script header).
+    if grep -qF 'circuitpython.mk' "$PORT_MK" 2>/dev/null && grep -qF 'LV_CP_MOD_DIR' "$PORT_MK" 2>/dev/null; then
+        echo "ok       port Makefile includes circuitpython.mk"
+    else
+        echo "pending  port Makefile circuitpython.mk include"
+    fi
+    if grep -qF 'filter-out $(LV_CP_LVGL_SOURCES)' "$PORT_MK" 2>/dev/null; then
+        echo "ok       port Makefile SRC_QSTR filters out LV_CP_LVGL_SOURCES"
+    else
+        echo "pending  port Makefile SRC_QSTR filter-out LV_CP_LVGL_SOURCES"
+    fi
+    if grep -qE 'CIRCUITPY_GIFIO[[:space:]]*=[[:space:]]*0' "$MPCONFIG_MK" 2>/dev/null \
+        || { [[ ${#CONFIG_MKS[@]} -gt 0 ]] && grep -qE 'CIRCUITPY_GIFIO[[:space:]]*=[[:space:]]*0' "${CONFIG_MKS[@]}" 2>/dev/null; }; then
+        echo "ok       CIRCUITPY_GIFIO=0 (mpconfig and/or board/variant)"
+    else
+        echo "pending  CIRCUITPY_GIFIO=0 when LVGL enabled"
+    fi
     exit 0
 fi
 
@@ -515,7 +539,9 @@ if [ "$APPLY" = 1 ] || [ "$DRY_RUN" = 1 ]; then
     log
 fi
 
+# GIFIO's lib/AnimatedGIF/gif.c duplicates LVGL libs/gif/gif.c — keep LVGL's.
 LVGL_ENABLE_BLOCK="CIRCUITPY_LVGL = 1
+CIRCUITPY_GIFIO = 0
 CFLAGS += -DCIRCUITPY_LVGL=1
 CFLAGS += -DLVGL_GENERATED_PHASE1=1"
 
@@ -532,10 +558,43 @@ for h in "${CONFIG_HS[@]}"; do
     log
 done
 
-log "==> Patch py/circuitpy_mpconfig.mk (default off)"
+log "==> Patch py/circuitpy_mpconfig.mk (default off; GIFIO off when LVGL on)"
+# CIRCUITPY_GIFIO ?= $(CIRCUITPY_DISPLAYIO) earlier in this file — force off when LVGL
+# links libs/gif (lv_bindings lv_conf.h: LV_USE_GIF=1).
 MPCONFIG_BLOCK="CIRCUITPY_LVGL ?= 0
-CFLAGS += -DCIRCUITPY_LVGL=\$(CIRCUITPY_LVGL)"
-insert_block_after_line "$MPCONFIG_MK" "CFLAGS += -DCIRCUITPY_LOCALE=\$(CIRCUITPY_LOCALE)" "$MPCONFIG_BLOCK"
+CFLAGS += -DCIRCUITPY_LVGL=\$(CIRCUITPY_LVGL)
+ifeq (\$(CIRCUITPY_LVGL),1)
+CIRCUITPY_GIFIO = 0
+endif"
+# Refresh marked block content if an older LVGL-only block is present (no force-apply).
+if [ "$DRY_RUN" = 1 ]; then
+    if grep -qF "$MARKER_TAG" "$MPCONFIG_MK" 2>/dev/null \
+        && ! grep -qE 'CIRCUITPY_GIFIO[[:space:]]*=[[:space:]]*0' "$MPCONFIG_MK" 2>/dev/null; then
+        echo "  [dry-run] would refresh mpconfig LVGL block to force CIRCUITPY_GIFIO=0"
+    fi
+elif grep -qF "$MARKER_TAG" "$MPCONFIG_MK" 2>/dev/null; then
+    python3 - "$MPCONFIG_MK" "$MARKER_BEGIN" "$MARKER_END" "$MPCONFIG_BLOCK" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+begin, end, block = sys.argv[2], sys.argv[3], sys.argv[4]
+text = path.read_text()
+start = text.find(begin)
+stop = text.find(end, start)
+if start < 0 or stop < 0:
+    raise SystemExit(f"marked block not found in {path}")
+stop += len(end)
+new = text[:start] + f"{begin}\n{block}\n{end}" + text[stop:]
+if new != text:
+    path.write_text(new)
+    print(f"  refreshed: {path}")
+else:
+    print(f"  skip (mpconfig LVGL block current): {path}")
+PY
+else
+    insert_block_after_line "$MPCONFIG_MK" "CFLAGS += -DCIRCUITPY_LOCALE=\$(CIRCUITPY_LOCALE)" "$MPCONFIG_BLOCK"
+fi
 log
 
 log "==> Patch py/circuitpy_defns.mk"
@@ -551,6 +610,82 @@ PORT_BLOCK="LV_CP_MOD_DIR := \$(abspath $LV_CP_MOD_REL)
 include \$(LV_CP_MOD_DIR)/circuitpython.mk"
 insert_block_after_line "$PORT_MK" "$(port_makefile_anchor)" "$PORT_BLOCK"
 log
+
+# Exclude LVGL core .c from SRC_QSTR on every port (no MP_QSTR_* in upstream LVGL).
+# Required for ESP ARG_MAX; correct and cheap on unix and others too.
+log "==> Patch port Makefile (SRC_QSTR filter-out LVGL)"
+if [ "$DRY_RUN" = 1 ]; then
+    if grep -qE '^SRC_QSTR \+= \$\{?SRC_C\}?' "$PORT_MK" \
+        && ! grep -q 'filter-out \$(LV_CP_LVGL_SOURCES)' "$PORT_MK"; then
+        echo "  [dry-run] would rewrite SRC_QSTR += \$(SRC_C) ... to filter-out LV_CP_LVGL_SOURCES"
+    elif grep -q 'filter-out \$(LV_CP_LVGL_SOURCES)' "$PORT_MK"; then
+        echo "  skip (already patched): $PORT_MK"
+    else
+        echo "  [dry-run] ERROR: no SRC_QSTR += \$(SRC_C) line in $PORT_MK"
+    fi
+else
+    python3 - "$PORT_MK" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+if "filter-out $(LV_CP_LVGL_SOURCES)" in text:
+    print(f"  skip (already patched): {path}")
+    raise SystemExit(0)
+# Match: SRC_QSTR += $(SRC_C) ...   or SRC_QSTR += ${SRC_C} ...
+pat = re.compile(
+    r"^(SRC_QSTR \+= )\$(\(|\{)SRC_C(\)|\})(.*)$",
+    re.M,
+)
+repl = r"\1$(filter-out $(LV_CP_LVGL_SOURCES),$(SRC_C))\4"
+new, n = pat.subn(repl, text, count=1)
+if n == 0:
+    print(
+        f"error: no SRC_QSTR += $(SRC_C) line in {path}; "
+        "all-port LVGL apply requires this for qstr filter-out",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+path.write_text(new)
+print(f"  patched: {path}")
+PY
+fi
+log
+
+# Full LVGL app is ~2.7MB; stock esp-idf-config/partitions-16MB.csv ota_0 is only 2048K.
+# Install a 4096K ota_0 table and point the board sdkconfig at it (must live under
+# esp-idf-config/ — relative paths outside the port tree are ignored by IDF confgen).
+if [[ "$PORT" == espressif && -n "$BOARD" ]]; then
+    board_mk="$PORT_DIR/boards/$BOARD/mpconfigboard.mk"
+    board_sdk="$PORT_DIR/boards/$BOARD/sdkconfig"
+    src_csv="$LV_CP_MOD_DIR/partitions-16MB-lvgl.csv"
+    dst_csv="$PORT_DIR/esp-idf-config/partitions-16MB-lvgl.csv"
+    if [[ -f "$board_mk" ]] && grep -qE 'CIRCUITPY_ESP_FLASH_SIZE[[:space:]]*=[[:space:]]*16MB' "$board_mk"; then
+        log "==> Install 16MB LVGL partition table for $BOARD"
+        if [[ ! -f "$src_csv" ]]; then
+            die "Missing $src_csv"
+        fi
+        if [ "$DRY_RUN" = 1 ]; then
+            echo "  [dry-run] would copy $src_csv -> $dst_csv"
+            echo "  [dry-run] would write $board_sdk (partitions-16MB-lvgl.csv)"
+        else
+            cp "$src_csv" "$dst_csv"
+            cat > "$board_sdk" <<'EOF'
+#
+# Larger app partition for CircuitPython + LVGL (~2.7MB+).
+# Stock partitions-16MB.csv ota_0 is 2048K — too small.
+#
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="esp-idf-config/partitions-16MB-lvgl.csv"
+CONFIG_PARTITION_TABLE_FILENAME="esp-idf-config/partitions-16MB-lvgl.csv"
+EOF
+            echo "  wrote: $dst_csv"
+            echo "  wrote: $board_sdk"
+        fi
+        log
+    fi
+fi
 
 if [ "$DRY_RUN" = 1 ]; then
     log "Dry run complete. Re-run with --apply to write changes."

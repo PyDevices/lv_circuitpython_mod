@@ -17,6 +17,9 @@ LVCP_C := $(LV_BINDINGS_DIR)/generated/lvgl_circuitpython.c
 LV_CP_LVGL_SOURCES := $(shell find $(LVGL_DIR)/src -type f -name '*.c')
 # CP coverage (and jpegio) already link lib/tjpgd; LVGL's copy uses incompatible tjpgdcnf.
 LV_CP_LVGL_SOURCES := $(filter-out $(LVGL_DIR)/src/libs/tjpgd/tjpgd.c,$(LV_CP_LVGL_SOURCES))
+# CIRCUITPY_GIFIO vendors AnimatedGIF/gif.c — apply_cp_lvgl_patches forces
+# CIRCUITPY_GIFIO=0 when CIRCUITPY_LVGL=1 so LVGL's libs/gif/gif.c (LV_USE_GIF)
+# can link. No lv_bindings generator change; constraint is build-side.
 LV_CP_SOURCES := $(LV_CP_MOD_DIR)/lv_mem_core_circuitpython.c
 
 ifeq ($(wildcard $(LVCP_C)),)
@@ -31,7 +34,8 @@ CFLAGS += -I$(LV_BINDINGS_DIR) -I$(LVGL_DIR) -Wno-unused-function
 # LVGL + generated bindings: suppress -Werror noise from upstream/generated C.
 LVGL_SUPPRESS_CFLAGS := -Wno-cast-align -Wno-nested-externs -Wno-unused-parameter \
 	-Wno-sign-compare -Wno-missing-prototypes -Wno-old-style-definition \
-	-Wno-float-conversion -Wno-double-promotion -Wno-shadow -Wno-type-limits
+	-Wno-float-conversion -Wno-double-promotion -Wno-shadow -Wno-type-limits \
+	-Wno-suggest-attribute=format
 
 # Spike module + generated bindings need LVGL headers during qstr/preprocess.
 # Include LVGL_SUPPRESS_CFLAGS: spike .c files include lvgl.h (inline headers trip -Werror=cast-align on RISC-V).
@@ -41,7 +45,11 @@ $(BUILD)/shared-module/lvgl/%.o: CFLAGS += -I$(LV_BINDINGS_DIR) -I$(LVGL_DIR) $(
 $(foreach _lvsrc,$(LV_CP_LVGL_SOURCES),$(eval $(BUILD)/$(_lvsrc:.c=.o): CFLAGS += $(LVGL_SUPPRESS_CFLAGS)))
 $(foreach _lvsrc,$(LV_CP_SOURCES),$(eval $(BUILD)/$(_lvsrc:.c=.o): CFLAGS += $(LVGL_SUPPRESS_CFLAGS)))
 
-# LVGL + bindings + GC-aware allocator
+# LVGL + bindings + GC-aware allocator.
+# LVGL core .c has no MP_QSTR_* — it must stay out of SRC_QSTR. Ports append
+# SRC_C to SRC_QSTR; with ESP-IDF's huge QSTR_GEN_CFLAGS that argv exceeds
+# ARG_MAX ("Argument list too long" on qstr.i.last). apply_cp_lvgl_patches.sh
+# rewrites SRC_QSTR += lines to filter-out $(LV_CP_LVGL_SOURCES).
 SRC_C += $(LV_CP_LVGL_SOURCES) $(LV_CP_SOURCES)
 
 # Hand-written module registration lives in the CP tree:

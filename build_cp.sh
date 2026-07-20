@@ -57,6 +57,11 @@ ensure_espressif_env() {
         echo "  cd $PORT_DIR/esp-idf && ./install.sh" >&2
         exit 1
     fi
+    # IDF export owns python3 (cmake / idf_component_manager). CircuitPython
+    # make recipes use $(PYTHON) for qstr / web-workflow — keep the CP venv.
+    if [[ -x "$CP_BUILD_VENV/bin/python" ]]; then
+        export PYTHON="$CP_BUILD_VENV/bin/python"
+    fi
 }
 
 ensure_cp_python_env() {
