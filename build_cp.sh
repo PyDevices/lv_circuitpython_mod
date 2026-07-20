@@ -14,6 +14,11 @@ BUILD_CP="${BUILD_CP:-$SCRIPT_DIR/build_cp.sh}"
 WORKSPACE_DIR="${WORKSPACE_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 CP_DIR="${CP_DIR:-$WORKSPACE_DIR/circuitpython}"
 
+# CircuitPython uses shared-bindings + circuitpython.mk, not MicroPython
+# USER_C_MODULES. Clear a leaked env from sibling build_mp.sh / shells so
+# lv_micropython_cmod is not pulled into the CP compile.
+unset USER_C_MODULES FROZEN_MANIFEST
+
 PORT="${PORT:-}"
 BOARD="${BOARD:-}"
 VARIANT="${VARIANT:-}"
