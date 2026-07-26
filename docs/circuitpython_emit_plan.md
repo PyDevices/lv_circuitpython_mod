@@ -35,7 +35,7 @@ One generated translation unit (`lvmp.c`) registered via `MP_REGISTER_MODULE`, p
 
 Split into **three layers**:
 
-1. **Build glue (this repo)** — `circuitpython.mk`, LVGL sources, `lv_mem_core_circuitpython.c`, generated `lvcp.c`
+1. **Build glue (this repo)** — `circuitpython.mk`, LVGL sources, `src/lv_mem_core_circuitpython.c`, generated `lvcp.c`
 2. **Hand-written spike (in CP tree)** — `shared-bindings/lvgl/__init__.c` until emission covers module registration
 3. **Generated API (via lv_bindings)** — `emit_circuitpython.py` → `generated/lvcp.c`, compiled via `SRC_C +=` in `circuitpython.mk`
 
