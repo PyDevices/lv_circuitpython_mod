@@ -91,10 +91,10 @@ Examples:
 Smoke test:
 
 ```bash
-./circuitpython/ports/unix/build-coverage/micropython ./lv_circuitpython_mod/tests/test_lvgl_cp_unix.py
+./circuitpython/ports/unix/build-coverage/micropython ./lv_circuitpython_mod/tools/test_lvgl_cp_unix.py
 ```
 
-Prefer the unified smoke test directly: `lv_bindings/test_lvgl_smoke.py`.
+Prefer the unified smoke test directly: `lv_bindings/tools/test_lvgl_smoke.py`.
 
 ## Environment variables
 
@@ -115,7 +115,7 @@ Prefer the unified smoke test directly: `lv_bindings/test_lvgl_smoke.py`.
 | `apply_cp_lvgl_patches.sh` | Patch CP tree and copy spike templates (`--apply`, `--force-apply`, `--status`) |
 | `circuitpython_spike/` | Hand-written `shared-bindings/lvgl` module templates |
 | `src/lv_mem_core_circuitpython.c` | GC-aware LVGL allocator |
-| `tests/test_lvgl_cp_unix.py` | Deprecated wrapper → `lv_bindings/test_lvgl_smoke.py` |
+| `tools/test_lvgl_cp_unix.py` | Deprecated wrapper → `lv_bindings/tools/test_lvgl_smoke.py` |
 | `build_cp.sh` | Build any port/board/variant (interactive or CLI) |
 | `docs/` | Integration notes |
 
