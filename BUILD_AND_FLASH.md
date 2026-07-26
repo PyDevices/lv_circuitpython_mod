@@ -9,7 +9,7 @@ Lessons from building and flashing **Adafruit Qualia S3 RGB666** (`adafruit_qual
 | Build wrapper | `lv_circuitpython_mod/build_cp.sh` |
 | LVGL patches | `lv_circuitpython_mod/apply_cp_lvgl_patches.sh` |
 | Make glue | `lv_circuitpython_mod/circuitpython.mk` |
-| 16MB LVGL partitions | `lv_circuitpython_mod/partitions-16MB-lvgl.csv` |
+| 16MB LVGL partitions | `lv_circuitpython_mod/scripts/partitions-16MB-lvgl.csv` |
 | CircuitPython tree | `circuitpython/` (upstream clone — do not commit) |
 | CP build venv | `lv_circuitpython_mod/.venv` |
 
@@ -221,4 +221,4 @@ Adafruit CircuitPython 10.2.1-dirty ... Adafruit-Qualia-S3-RGB666
 ## Upstream / commit policy
 
 - Do **not** commit changes inside `circuitpython/` (or `micropython/`) unless explicitly overridden.
-- Durable fixes belong in `lv_circuitpython_mod/` (`build_cp.sh`, `apply_cp_lvgl_patches.sh`, `circuitpython.mk`, `partitions-16MB-lvgl.csv`).
+- Durable fixes belong in `lv_circuitpython_mod/` (`build_cp.sh`, `apply_cp_lvgl_patches.sh`, `circuitpython.mk`, `scripts/partitions-16MB-lvgl.csv`).

@@ -29,7 +29,7 @@ PORT="${PORT:-}"
 BOARD="${BOARD:-}"
 VARIANT="${VARIANT:-}"
 MODE=""
-SPIKE_DIR="$LV_CP_MOD_DIR/circuitpython_spike"
+SPIKE_DIR="$LV_CP_MOD_DIR/src/circuitpython_spike"
 SPIKE_MANIFEST="$SPIKE_DIR/copy_manifest.txt"
 
 MARKER_TAG="lv-circuitpython-mod begin (apply_cp_lvgl_patches.sh)"
@@ -660,7 +660,7 @@ log
 if [[ "$PORT" == espressif && -n "$BOARD" ]]; then
     board_mk="$PORT_DIR/boards/$BOARD/mpconfigboard.mk"
     board_sdk="$PORT_DIR/boards/$BOARD/sdkconfig"
-    src_csv="$LV_CP_MOD_DIR/partitions-16MB-lvgl.csv"
+    src_csv="$LV_CP_MOD_DIR/scripts/partitions-16MB-lvgl.csv"
     dst_csv="$PORT_DIR/esp-idf-config/partitions-16MB-lvgl.csv"
     if [[ -f "$board_mk" ]] && grep -qE 'CIRCUITPY_ESP_FLASH_SIZE[[:space:]]*=[[:space:]]*16MB' "$board_mk"; then
         log "==> Install 16MB LVGL partition table for $BOARD"

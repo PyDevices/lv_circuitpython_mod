@@ -11,7 +11,7 @@ Use `apply_cp_lvgl_patches.sh` for `CIRCUITPY_LVGL`, `circuitpy_defns.mk`, and
 
 ```
 circuitpython/
-  shared-bindings/lvgl/__init__.c   ← from circuitpython_spike/ (+ phase-1 merge below)
+  shared-bindings/lvgl/__init__.c   ← from src/circuitpython_spike/ (+ phase-1 merge below)
   shared-bindings/lvgl/__init__.h
   shared-module/lvgl/__init.c
   shared-module/lvgl/__init.h
@@ -32,7 +32,7 @@ lv_bindings/generated/lvcp.c   ← regenerate_lvcp.sh
 ./apply_cp_lvgl_patches.sh --apply
 ```
 
-Spike files to copy are listed in `circuitpython_spike/copy_manifest.txt`.
+Spike files to copy are listed in `src/circuitpython_spike/copy_manifest.txt`.
 
 2. `CIRCUITPY_LVGL=1` on the target board or unix variant (patch script adds this).
 3. Port `Makefile` includes `$(LV_CP_MOD_DIR)/circuitpython.mk` (patch script adds this).
