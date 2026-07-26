@@ -17,6 +17,7 @@ CP_DIR="${CP_DIR:-$WORKSPACE_DIR/circuitpython}"
 # CircuitPython uses shared-bindings + circuitpython.mk, not MicroPython
 # USER_C_MODULES. Clear a leaked env from sibling build_mp.sh / shells so
 # lv_micropython_cmod is not pulled into the CP compile.
+# FROZEN_MANIFEST is re-set below for unix only (see resolve_unix_frozen_manifest).
 unset USER_C_MODULES FROZEN_MANIFEST
 
 PORT="${PORT:-}"
@@ -283,11 +284,36 @@ run_lvgl_patches
 print_rerun_hint
 print_make_commands
 
+# Unix coverage/standard use variant manifests. Wrap them so we can freeze
+# lib/display_driver.py. MCU ports keep CircuitPython's generated BUILD/manifest.py
+# — do not override FROZEN_MANIFEST there.
+resolve_unix_frozen_manifest() {
+    local path=""
+    if [[ -n "$VARIANT" && -f "$PORT_DIR/variants/$VARIANT/manifest.py" ]]; then
+        path="$PORT_DIR/variants/$VARIANT/manifest.py"
+    elif [[ -f "$PORT_DIR/variants/manifest.py" ]]; then
+        path="$PORT_DIR/variants/manifest.py"
+    else
+        echo "No unix frozen manifest for variant=${VARIANT:-}" >&2
+        exit 1
+    fi
+    (cd "$(dirname "$path")" && echo "$(pwd)/$(basename "$path")")
+}
+
 make_args=()
 user_config=$(cp_user_config_make_opts)
 [[ -n "$user_config" ]] && make_args+=("$user_config")
 [[ -n "$BOARD" ]] && make_args+=(BOARD="$BOARD")
 [[ -n "$VARIANT" ]] && make_args+=(VARIANT="$VARIANT")
+
+if [[ "$PORT" == unix ]]; then
+    export FROZEN_MANIFEST_UPSTREAM
+    FROZEN_MANIFEST_UPSTREAM=$(resolve_unix_frozen_manifest)
+    FROZEN_MANIFEST="$SCRIPT_DIR/manifest.py"
+    make_args+=(FROZEN_MANIFEST="$FROZEN_MANIFEST")
+    echo "Frozen manifest: $FROZEN_MANIFEST"
+    echo "  FROZEN_MANIFEST_UPSTREAM=$FROZEN_MANIFEST_UPSTREAM"
+fi
 
 ensure_cp_python_env
 ensure_espressif_env
