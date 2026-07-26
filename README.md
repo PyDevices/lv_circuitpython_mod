@@ -120,3 +120,7 @@ Prefer the unified smoke test directly: `lv_bindings/tools/test_lvgl_smoke.py`.
 | `docs/` | Integration notes |
 
 See `docs/circuitpython_spike.md` for architecture details.
+
+## Frozen Python
+
+`manifest.py` freezes `lib/display_driver.py` on unix builds. Sync from lv_bindings with `./scripts/sync_from_lv_bindings.sh`.
