@@ -20,14 +20,14 @@ LV_CP_LVGL_SOURCES := $(filter-out $(LVGL_DIR)/src/libs/tjpgd/tjpgd.c,$(LV_CP_LV
 # CIRCUITPY_GIFIO vendors AnimatedGIF/gif.c — apply_cp_lvgl_patches forces
 # CIRCUITPY_GIFIO=0 when CIRCUITPY_LVGL=1 so LVGL's libs/gif/gif.c (LV_USE_GIF)
 # can link. No lv_bindings generator change; constraint is build-side.
-LV_CP_SOURCES := $(LV_CP_MOD_DIR)/lv_mem_core_circuitpython.c
+LV_CP_SOURCES := $(LV_CP_MOD_DIR)/src/lv_mem_core_circuitpython.c
 
 ifeq ($(wildcard $(LVCP_C)),)
 $(error $(LVCP_C) not found. Run $(LV_BINDINGS_DIR)/regenerate_lvcp.sh)
 endif
 LV_CP_SOURCES += $(LVCP_C)
 
-# CircuitPython allocator override (see lv_conf.h + lv_mem_core_circuitpython.c)
+# CircuitPython allocator override (see lv_conf.h + src/lv_mem_core_circuitpython.c)
 CFLAGS += -DLV_CIRCUITPYTHON_BUILD=1
 CFLAGS += -I$(LV_BINDINGS_DIR) -I$(LVGL_DIR) -Wno-unused-function
 

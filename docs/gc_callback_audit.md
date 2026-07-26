@@ -113,7 +113,7 @@ Same rule as widgets: **the dict is not rooted unless Python holds a reference.*
 
 - **Spike module** (`circuitpython_spike/shared-bindings/lvgl/__init.c`) only registers
   `init` / `deinit`; generated symbols live in `lvcp.c` and are merged via `LVCP_MODULE_GLOBALS`.
-- **Allocator** (`lv_mem_core_circuitpython.c`): LVGL heap allocations use `gc_alloc` / `m_malloc`;
+- **Allocator** (`src/lv_mem_core_circuitpython.c`): LVGL heap allocations use `gc_alloc` / `m_malloc`;
   LVGL-internal pointers are not Python objects.
 - **Display bridge:** **ON HOLD** — flush/tick callbacks will be Python-registered separately;
   same callback lifetime rules apply when implemented.

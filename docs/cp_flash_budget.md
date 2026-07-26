@@ -2,7 +2,7 @@
 
 Short review before the first on-tree CP build (P4 Function EV board).
 
-**Related:** `lv_mem_core_circuitpython.c`, `circuitpython.mk`, `docs/gc_callback_audit.md`.
+**Related:** `src/lv_mem_core_circuitpython.c`, `circuitpython.mk`, `docs/gc_callback_audit.md`.
 
 ---
 
@@ -21,7 +21,7 @@ Firmware partition size on ESP32 CP boards is typically **~2–4 MB** for the fa
 | `generated/lvcp.c` | **~1.60 MB** source | ~39.5k lines; parity with `lvmp.c` |
 | `generated/lvmp.c` | **~1.55 MB** source | reference |
 | Spike module | ~2 KB | `shared-bindings/lvgl/`, `shared-module/lvgl/` |
-| Allocator | ~2 KB | `lv_mem_core_circuitpython.c` |
+| Allocator | ~2 KB | `src/lv_mem_core_circuitpython.c` |
 
 **Reference binary:** MicroPython unix build with full LVGL + `lvmp.c` today is **~2.0 MB** (`build-standard/micropython`). Embedded CP image will differ (LTO, ESP32 toolchain, full CP core), but order of magnitude is **multi‑MB** — comfortable on 16 MB flash **if** the app partition is ≥ ~3 MB.
 
@@ -45,9 +45,9 @@ Both routes use the same `lv_conf.h` switch:
 #endif
 ```
 
-`circuitpython.mk` sets `-DLV_CIRCUITPYTHON_BUILD=1` and compiles `lv_mem_core_circuitpython.c`.
+`circuitpython.mk` sets `-DLV_CIRCUITPYTHON_BUILD=1` and compiles `src/lv_mem_core_circuitpython.c`.
 
-| API | MicroPython (`lv_mem_core_micropython.c`) | CircuitPython (draft) |
+| API | MicroPython (`src/lv_mem_core_micropython.c`) | CircuitPython (draft) |
 |-----|-------------------------------------------|------------------------|
 | `lv_malloc_core` | `gc_alloc(size, **true**)` | `gc_alloc(size, **true**)` (aligned with MP) |
 | `lv_realloc_core` | `gc_realloc(..., **true**)` | `gc_realloc(..., **true**)` |
