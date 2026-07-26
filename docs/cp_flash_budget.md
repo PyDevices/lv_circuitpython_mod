@@ -29,7 +29,7 @@ Firmware partition size on ESP32 CP boards is typically **~2–4 MB** for the fa
 
 1. After first CP build with full bindings, note `make` output size / `idf.py size`.
 2. After full `lvcp.c` link, compare again; ensure partition headroom ≥ 512 KB for future growth.
-3. If tight on smaller boards later, plan `CIRCUITPY_LVGL_FULL` trim driven by `lvcp.c.json` (see `docs/circuitpython_emit_plan.md`).
+3. If tight on smaller boards later, plan `CIRCUITPY_LVGL_FULL` trim driven by `lvcp.c.json` (see `docs/circuitpython_spike.md`).
 
 ---
 

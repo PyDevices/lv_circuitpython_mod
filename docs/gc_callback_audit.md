@@ -139,4 +139,4 @@ Same rule as widgets: **the dict is not rooted unless Python holds a reference.*
 | CP-specific `mp_arg_validate` in hand-written spike | Low |
 | Display bridge GC policy | **On hold** (user request) |
 
-See also `docs/circuitpython_emit_plan.md` § Open questions.
+See also `docs/circuitpython_spike.md` § Open questions.
