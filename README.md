@@ -17,6 +17,8 @@ workspace/
 
 ([cmods](https://github.com/PyDevices/cmods) is an optional convenience workspace that sets up this same sibling layout — not required.)
 
+For day-to-day work, this repo is the place to patch CircuitPython’s LVGL integration, not the place to author the generator itself. The common loop is to change the patch set or the spike templates under **`src/`**, rebuild a target port with **`build_cp.sh`**, and then smoke-test with the shared LVGL smoke script. If the underlying binding shape changed, regenerate **`lv_bindings`** first so the generated `lvcp.c` and header files stay in sync.
+
 ## 🚀 First-time setup
 
 ```bash
