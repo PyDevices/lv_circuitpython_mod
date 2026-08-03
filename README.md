@@ -2,6 +2,8 @@
 
 CircuitPython integration for LVGL: tree patches, build glue, spike templates, and tests.
 
+This repo is a consumer/build repo for the LVGL stack. It consumes generated bindings from lv_bindings and rebuilds CircuitPython targets, but it does not publish its own package to TestPyPI; lv_cpython_mod is the publishing endpoint for the family.
+
 Requires sibling clones of [lv_bindings](https://github.com/PyDevices/lv_bindings) (generated `lvcp.c`) and [circuitpython](https://github.com/adafruit/circuitpython). Check out a [stable release tag](https://github.com/adafruit/circuitpython/releases) — pick the version yourself; this repo does not track a specific CircuitPython version.
 
 ## Workspace layout
