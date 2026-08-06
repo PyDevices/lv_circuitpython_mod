@@ -6,7 +6,7 @@ Lessons from building and flashing **Adafruit Qualia S3 RGB666** (`adafruit_qual
 
 | Item | Path |
 |------|------|
-| Build wrapper | `lv_circuitpython_mod/build_cp.sh` |
+| Build orchestrator (optional) | cmods workspace `build_cp.sh` |
 | LVGL patches | `lv_circuitpython_mod/apply_cp_lvgl_patches.sh` |
 | Make glue | `lv_circuitpython_mod/circuitpython.mk` |
 | 16MB LVGL partitions | `lv_circuitpython_mod/scripts/partitions-16MB-lvgl.csv` |
@@ -14,7 +14,13 @@ Lessons from building and flashing **Adafruit Qualia S3 RGB666** (`adafruit_qual
 | CP build venv | `lv_circuitpython_mod/.venv` |
 
 ```bash
+# Standalone patch + make
 cd ~/gh/pydevices/cmods/lv_circuitpython_mod
+./apply_cp_lvgl_patches.sh --apply --port espressif --board adafruit_qualia_s3_rgb666
+cd ../circuitpython/ports/espressif && make -j BOARD=adafruit_qualia_s3_rgb666
+
+# Or cmods orchestrator (also applies usdl2 + pygraphics on unix)
+cd ~/gh/pydevices/cmods
 ./build_cp.sh --port espressif --board adafruit_qualia_s3_rgb666
 ```
 
@@ -221,4 +227,4 @@ Adafruit CircuitPython 10.2.1-dirty ... Adafruit-Qualia-S3-RGB666
 ## Upstream / commit policy
 
 - Do **not** commit changes inside `circuitpython/` (or `micropython/`) unless explicitly overridden.
-- Durable fixes belong in `lv_circuitpython_mod/` (`build_cp.sh`, `apply_cp_lvgl_patches.sh`, `circuitpython.mk`, `scripts/partitions-16MB-lvgl.csv`).
+- Durable fixes belong in `lv_circuitpython_mod/` (`apply_cp_lvgl_patches.sh`, `circuitpython.mk`, `scripts/partitions-16MB-lvgl.csv`). Optional cmods orchestrator: workspace-root `build_cp.sh`.

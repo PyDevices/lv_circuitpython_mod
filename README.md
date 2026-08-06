@@ -19,7 +19,7 @@ workspace/
 
 ([cmods](https://github.com/PyDevices/cmods) is an optional convenience workspace that sets up this same sibling layout — not required.)
 
-For day-to-day work, this repo is the place to patch CircuitPython’s LVGL integration, not the place to author the generator itself. The common loop is to change the patch set or the spike templates under **`src/`**, rebuild a target port with **`build_cp.sh`**, and then smoke-test with the shared LVGL smoke script. If the underlying binding shape changed, regenerate **`lv_bindings`** first so the generated `lvcp.c` and header files stay in sync.
+For day-to-day work, this repo is the place to patch CircuitPython’s LVGL integration, not the place to author the generator itself. The common loop is to change the patch set or the spike templates under **`src/`**, apply patches with **`./apply_cp_lvgl_patches.sh --apply`**, rebuild (standalone `make` or cmods **`../build_cp.sh`**), and smoke-test with the shared LVGL smoke script. If the underlying binding shape changed, regenerate **`lv_bindings`** first so the generated `lvcp.c` and header files stay in sync.
 
 ## 🚀 First-time setup
 
@@ -41,7 +41,7 @@ cd ..
 
 ## Build environment
 
-Install system build tools and cross-compilers **before** using `build_cp.sh`. Follow CircuitPython’s own documentation — this repo does not install compilers or apt packages for you.
+Install system build tools and cross-compilers **before** building CircuitPython. Follow CircuitPython’s own documentation — this repo does not install compilers or apt packages for you.
 
 - [circuitpython/BUILDING.md](https://github.com/adafruit/circuitpython/blob/main/BUILDING.md) in your clone
 - Adafruit Learn: [Building CircuitPython on Linux](https://learn.adafruit.com/building-circuitpython/linux) (or macOS / WSL as appropriate)
@@ -68,29 +68,33 @@ arm-none-eabi-gcc --version   # should report GCC 14.x
 which arm-none-eabi-gcc       # should be under /opt/..., not /usr/bin
 ```
 
-Open a new terminal (or `source /etc/profile.d/arm-gnu-toolchain.sh`) before running `build_cp.sh`.
+Open a new terminal (or `source /etc/profile.d/arm-gnu-toolchain.sh`) before building.
 
-`build_cp.sh` only manages a local Python venv (`.venv/`) and installs `circuitpython/requirements-dev.txt`. If `minify_html` fails to install, you may need Rust (see CircuitPython `BUILDING.md`).
+`build_cp.sh` (optional [cmods](https://github.com/PyDevices/cmods) workspace orchestrator) manages a local Python venv (`lv_circuitpython_mod/.venv/`) and installs `circuitpython/requirements-dev.txt`. If `minify_html` fails to install, you may need Rust (see CircuitPython `BUILDING.md`).
 
 ## Patch and build
+
+This repo’s patch script works **standalone** — clone `circuitpython` and `lv_circuitpython_mod` as siblings (plus `lv_bindings` for generated sources). No cmods workspace required:
 
 ```bash
 cd lv_circuitpython_mod
 ./apply_cp_lvgl_patches.sh --dry-run --port unix --variant coverage
 ./apply_cp_lvgl_patches.sh --apply --port unix --variant coverage
 ./apply_cp_lvgl_patches.sh --force-apply --port unix --variant coverage  # reinstall patches
-./build_cp.sh --port unix --variant standard   # LVGL dev (no gcov)
-./build_cp.sh --port unix --variant coverage   # CP test suite / gcov
+cd ../circuitpython/ports/unix
+make -j VARIANT=coverage
 ```
 
-Examples:
+With a [cmods](https://github.com/PyDevices/cmods) workspace, the root `build_cp.sh` applies LVGL + usdl2 + pygraphics patches then builds:
 
 ```bash
+./build_cp.sh --port unix --variant standard   # LVGL dev (no gcov)
+./build_cp.sh --port unix --variant coverage   # CP test suite / gcov
 ./build_cp.sh --port espressif --board espressif_esp32p4_function_ev
 ./build_cp.sh    # interactive port/board/variant selection
 ```
 
-`build_cp.sh` always runs `apply_cp_lvgl_patches.sh --apply` before make (idempotent).
+`build_cp.sh` always runs `apply_cp_lvgl_patches.sh --apply` (and the unix usdl2/pygraphics apply scripts) before make.
 
 Smoke test:
 
@@ -104,9 +108,10 @@ Prefer the unified smoke test directly: `lv_bindings/tools/test_lvgl_smoke.py`.
 
 | Variable | Default |
 |----------|---------|
-| `WORKSPACE_DIR` | Parent of `lv_circuitpython_mod/` |
-| `CP_DIR` | `$WORKSPACE_DIR/circuitpython` |
-| `CP_BUILD_VENV` | `$SCRIPT_DIR/.venv` |
+| `WORKSPACE_DIR` | Parent of this repo |
+| `CP_DIR` | Sibling `circuitpython/` (or set explicitly) |
+| `LV_CP_MOD_DIR` | This repo (when using cmods `build_cp.sh`) |
+| `CP_BUILD_VENV` | `$LV_CP_MOD_DIR/.venv` (cmods `build_cp.sh`) |
 | `PORT` | (prompted or pass `--port`) |
 | `BOARD` | (prompted or pass `--board`) |
 | `VARIANT` | (prompted or pass `--variant`) |
@@ -120,7 +125,6 @@ Prefer the unified smoke test directly: `lv_bindings/tools/test_lvgl_smoke.py`.
 | `src/circuitpython_spike/` | Hand-written `shared-bindings/lvgl` module templates |
 | `src/lv_mem_core_circuitpython.c` | GC-aware LVGL allocator |
 | `tools/test_lvgl_cp_unix.py` | Deprecated wrapper → `lv_bindings/tools/test_lvgl_smoke.py` |
-| `build_cp.sh` | Build any port/board/variant (interactive or CLI) |
 | `docs/` | Integration notes |
 
 See `docs/circuitpython_spike.md` for architecture details.

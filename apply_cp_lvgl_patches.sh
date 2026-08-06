@@ -9,6 +9,12 @@
 #
 # Environment: WORKSPACE_DIR, CP_DIR, PORT, BOARD, VARIANT
 #
+# Standalone: clone circuitpython + lv_circuitpython_mod (+ lv_bindings) as
+# siblings, then:
+#   ./apply_cp_lvgl_patches.sh --apply --port unix --variant coverage
+#   cd ../circuitpython/ports/unix && make -j VARIANT=coverage
+# No cmods workspace or other usermods required.
+#
 # All-port requirements (unix, espressif, …) — not ESP-specific:
 #   1. include lv_circuitpython_mod/circuitpython.mk from the port Makefile
 #   2. SRC_QSTR excludes $(LV_CP_LVGL_SOURCES) (LVGL .c has no MP_QSTR_*; avoids ARG_MAX)
@@ -18,12 +24,31 @@
 
 set -euo pipefail
 
+die() { echo "error: $*" >&2; exit 1; }
+
 LV_CP_MOD_DIR=$(cd "$(dirname "$0")" && pwd)
 WORKSPACE_DIR="${WORKSPACE_DIR:-$(cd "$LV_CP_MOD_DIR/.." && pwd)}"
-CP_DIR="${CP_DIR:-$WORKSPACE_DIR/circuitpython}"
-if [ ! -d "$CP_DIR/.git" ] && [ -d "$HOME/github/circuitpython/.git" ]; then
-    CP_DIR="$HOME/github/circuitpython"
+
+# Resolve CircuitPython without requiring a cmods workspace. Override with CP_DIR.
+if [[ -z "${CP_DIR:-}" ]] || [[ ! -d "${CP_DIR}/ports" ]]; then
+    CP_DIR=""
+    for _cand in \
+        "$WORKSPACE_DIR/circuitpython" \
+        "$HOME/github/circuitpython" \
+        "$HOME/gh/circuitpython" \
+        "$HOME/gh/pydevices/cmods/circuitpython"
+    do
+        if [[ -d "$_cand/ports" ]]; then
+            CP_DIR=$(cd "$_cand" && pwd)
+            break
+        fi
+    done
 fi
+unset _cand
+if [[ -z "${CP_DIR:-}" ]] || [[ ! -d "$CP_DIR/ports" ]]; then
+    die "CircuitPython tree not found (looked for sibling circuitpython/ under $WORKSPACE_DIR). Set CP_DIR."
+fi
+CP_DIR=$(cd "$CP_DIR" && pwd)
 
 PORT="${PORT:-}"
 BOARD="${BOARD:-}"
@@ -41,8 +66,6 @@ APPLY=0
 FORCE=0
 CONFIG_MKS=()
 CONFIG_HS=()
-
-die() { echo "error: $*" >&2; exit 1; }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -431,10 +454,20 @@ patch_module_sources_if_present() {
 }
 
 build_next_cmd() {
-    local -a cmd=("$LV_CP_MOD_DIR/build_cp.sh" --port "$PORT")
-    [[ -n "$BOARD" ]] && cmd+=(--board "$BOARD")
-    [[ -n "$VARIANT" ]] && cmd+=(--variant "$VARIANT")
-    printf '%q ' "${cmd[@]}"
+    local -a cmd=()
+    if [[ -x "$WORKSPACE_DIR/build_cp.sh" ]]; then
+        cmd=("$WORKSPACE_DIR/build_cp.sh" --port "$PORT")
+        [[ -n "$BOARD" ]] && cmd+=(--board "$BOARD")
+        [[ -n "$VARIANT" ]] && cmd+=(--variant "$VARIANT")
+        printf '%q ' "${cmd[@]}"
+        return
+    fi
+    # Standalone: plain make in the port directory.
+    local port_dir="$CP_DIR/ports/$PORT"
+    printf 'cd %q && make -j' "$port_dir"
+    [[ -n "$BOARD" ]] && printf ' BOARD=%q' "$BOARD"
+    [[ -n "$VARIANT" ]] && printf ' VARIANT=%q' "$VARIANT"
+    printf '\n'
 }
 
 collect_patch_files() {
@@ -445,7 +478,7 @@ collect_patch_files() {
 
 # --- main ---
 
-[ -d "$CP_DIR/.git" ] || die "CircuitPython tree not found at $CP_DIR"
+[ -d "$CP_DIR/ports" ] || die "CircuitPython tree not found at $CP_DIR (set CP_DIR)"
 [ -f "$SPIKE_MANIFEST" ] || die "Missing spike manifest: $SPIKE_MANIFEST"
 
 resolve_config_files
@@ -693,6 +726,10 @@ elif [ "$APPLY" = 1 ]; then
     log "Patches applied."
     log
     log "Next:"
-    log "  $WORKSPACE_DIR/lv_bindings/regenerate_lvcp.sh"
+    if [[ -x "$WORKSPACE_DIR/lv_bindings/regenerate_lvcp.sh" ]]; then
+        log "  $WORKSPACE_DIR/lv_bindings/regenerate_lvcp.sh"
+    else
+        log "  (regenerate lv_bindings CircuitPython artifacts if needed)"
+    fi
     log "  $(build_next_cmd)"
 fi
