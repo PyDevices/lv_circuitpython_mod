@@ -4,7 +4,7 @@ Target board: **[ESP32-P4-Function-EV-Board](https://circuitpython.org/board/esp
 (`BOARD=espressif_esp32p4_function_ev`, `ports/espressif`).
 
 Copy these files into a CircuitPython tree after `circuitpython/` is in place.
-Use `apply_cp_lvgl_patches.sh` for `CIRCUITPY_LVGL`, `circuitpy_defns.mk`, and
+Use `apply_cp_patches.sh` for `CIRCUITPY_LVGL`, `circuitpy_defns.mk`, and
 `circuitpython.mk` wiring.
 
 ## Layout in CircuitPython
@@ -28,8 +28,8 @@ lv_bindings/generated/lvgl_circuitpython.c   ← regenerate_lvcp.sh
 1. Apply CP tree patches (dry-run first):
 
 ```bash
-./apply_cp_lvgl_patches.sh --dry-run
-./apply_cp_lvgl_patches.sh --apply
+./apply_cp_patches.sh --dry-run
+./apply_cp_patches.sh --apply
 ```
 
 Spike files to copy are listed in `src/circuitpython_spike/copy_manifest.txt`.

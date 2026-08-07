@@ -17,9 +17,7 @@ workspace/
   circuitpython/
 ```
 
-([cmods](https://github.com/PyDevices/cmods) is an optional convenience workspace that sets up this same sibling layout — not required.)
-
-For day-to-day work, this repo is the place to patch CircuitPython’s LVGL integration, not the place to author the generator itself. The common loop is to change the patch set or the spike templates under **`src/`**, apply patches with **`./apply_cp_lvgl_patches.sh --apply`**, rebuild (standalone `make` or cmods **`../build_cp.sh`**), and smoke-test with the shared LVGL smoke script. If the underlying binding shape changed, regenerate **`lv_bindings`** first so the generated `lvcp.c` and header files stay in sync.
+For day-to-day work, this repo is the place to patch CircuitPython’s LVGL integration, not the place to author the generator itself. The common loop is to change the patch set or the spike templates under **`src/`**, apply patches with **`./apply_cp_patches.sh --apply`**, rebuild with plain `make`, and smoke-test with the shared LVGL smoke script. If the underlying binding shape changed, regenerate **`lv_bindings`** first so the generated `lvcp.c` and header files stay in sync.
 
 ## 🚀 First-time setup
 
@@ -70,31 +68,34 @@ which arm-none-eabi-gcc       # should be under /opt/..., not /usr/bin
 
 Open a new terminal (or `source /etc/profile.d/arm-gnu-toolchain.sh`) before building.
 
-`build_cp.sh` (optional [cmods](https://github.com/PyDevices/cmods) workspace orchestrator) manages a local Python venv (`lv_circuitpython_mod/.venv/`) and installs `circuitpython/requirements-dev.txt`. If `minify_html` fails to install, you may need Rust (see CircuitPython `BUILDING.md`).
+Create a Python venv for CircuitPython’s `requirements-dev.txt` (needed for `minify_html` and related tools). If `minify_html` fails to install, you may need Rust (see CircuitPython `BUILDING.md`).
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r ../circuitpython/requirements-dev.txt
+export PATH="$(pwd)/.venv/bin:$PATH"
+```
 
 ## Patch and build
 
-This repo’s patch script works **standalone** — clone `circuitpython` and `lv_circuitpython_mod` as siblings (plus `lv_bindings` for generated sources). No cmods workspace required:
-
 ```bash
 cd lv_circuitpython_mod
-./apply_cp_lvgl_patches.sh --dry-run --port unix --variant coverage
-./apply_cp_lvgl_patches.sh --apply --port unix --variant coverage
-./apply_cp_lvgl_patches.sh --force-apply --port unix --variant coverage  # reinstall patches
+./apply_cp_patches.sh --dry-run --port unix --variant coverage
+./apply_cp_patches.sh --apply --port unix --variant coverage
+./apply_cp_patches.sh --force-apply --port unix --variant coverage  # reinstall patches
 cd ../circuitpython/ports/unix
 make -j VARIANT=coverage
 ```
 
-With a [cmods](https://github.com/PyDevices/cmods) workspace, the root `build_cp.sh` applies LVGL + usdl2 + pygraphics patches then builds:
+Espressif example:
 
 ```bash
-./build_cp.sh --port unix --variant standard   # LVGL dev (no gcov)
-./build_cp.sh --port unix --variant coverage   # CP test suite / gcov
-./build_cp.sh --port espressif --board espressif_esp32p4_function_ev
-./build_cp.sh    # interactive port/board/variant selection
+cd lv_circuitpython_mod
+./apply_cp_patches.sh --apply --port espressif --board adafruit_qualia_s3_rgb666
+cd ../circuitpython/ports/espressif
+. ./esp-idf/export.sh
+make -j BOARD=adafruit_qualia_s3_rgb666
 ```
-
-`build_cp.sh` always runs `apply_cp_lvgl_patches.sh --apply` (and the unix usdl2/pygraphics apply scripts) before make.
 
 Smoke test:
 
@@ -104,14 +105,14 @@ Smoke test:
 
 Prefer the unified smoke test directly: `lv_bindings/tools/test_lvgl_smoke.py`.
 
+See the [cmods workspace](https://github.com/PyDevices/cmods) for an easier way to build this repo with other CircuitPython extensions.
+
 ## Environment variables
 
 | Variable | Default |
 |----------|---------|
 | `WORKSPACE_DIR` | Parent of this repo |
 | `CP_DIR` | Sibling `circuitpython/` (or set explicitly) |
-| `LV_CP_MOD_DIR` | This repo (when using cmods `build_cp.sh`) |
-| `CP_BUILD_VENV` | `$LV_CP_MOD_DIR/.venv` (cmods `build_cp.sh`) |
 | `PORT` | (prompted or pass `--port`) |
 | `BOARD` | (prompted or pass `--board`) |
 | `VARIANT` | (prompted or pass `--variant`) |
@@ -121,9 +122,10 @@ Prefer the unified smoke test directly: `lv_bindings/tools/test_lvgl_smoke.py`.
 | Path | Role |
 |------|------|
 | `circuitpython.mk` | Port Makefile fragment (LVGL + `lvcp.c` + allocator) |
-| `apply_cp_lvgl_patches.sh` | Patch CP tree and copy spike templates (`--apply`, `--force-apply`, `--status`) |
+| `apply_cp_patches.sh` | Patch CP tree and copy spike templates (`--apply`, `--force-apply`, `--status`) |
 | `src/circuitpython_spike/` | Hand-written `shared-bindings/lvgl` module templates |
 | `src/lv_mem_core_circuitpython.c` | GC-aware LVGL allocator |
+| `manifest.py` | Freezes `lib/display_driver.py` (optional freeze helper) |
 | `tools/test_lvgl_cp_unix.py` | Deprecated wrapper → `lv_bindings/tools/test_lvgl_smoke.py` |
 | `docs/` | Integration notes |
 
@@ -131,4 +133,4 @@ See `docs/circuitpython_spike.md` for architecture details.
 
 ## Frozen Python
 
-`manifest.py` freezes `lib/display_driver.py` on unix builds. Sync from lv_bindings with `./scripts/sync_from_lv_bindings.sh`.
+`manifest.py` freezes `lib/display_driver.py`. Sync from lv_bindings with `./scripts/sync_from_lv_bindings.sh`. Point CircuitPython’s `FROZEN_MANIFEST` at a wrapper that `include()`s this file (and any upstream freeze you still need).

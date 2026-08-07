@@ -1,30 +1,27 @@
 # CircuitPython + LVGL: build and flash notes
 
-Lessons from building and flashing **Adafruit Qualia S3 RGB666** (`adafruit_qualia_s3_rgb666`) with full LVGL via `build_cp.sh` (2026-07-20). Intended for agents and humans working in the cmods tree — not for mpftp public docs.
+Lessons from building and flashing **Adafruit Qualia S3 RGB666** (`adafruit_qualia_s3_rgb666`) with full LVGL (2026-07-20). Sibling-clone workflow: this repo next to `circuitpython/` and `lv_bindings/`.
 
 ## Tooling locations
 
 | Item | Path |
 |------|------|
-| Build orchestrator (optional) | cmods workspace `build_cp.sh` |
-| LVGL patches | `lv_circuitpython_mod/apply_cp_lvgl_patches.sh` |
-| Make glue | `lv_circuitpython_mod/circuitpython.mk` |
-| 16MB LVGL partitions | `lv_circuitpython_mod/scripts/partitions-16MB-lvgl.csv` |
-| CircuitPython tree | `circuitpython/` (upstream clone — do not commit) |
-| CP build venv | `lv_circuitpython_mod/.venv` |
+| LVGL patches | `./apply_cp_patches.sh` (this repo) |
+| Make glue | `./circuitpython.mk` |
+| 16MB LVGL partitions | `./scripts/partitions-16MB-lvgl.csv` |
+| CircuitPython tree | sibling `circuitpython/` (upstream clone — do not commit) |
+| CP build venv | local `.venv` with `circuitpython/requirements-dev.txt` |
 
 ```bash
-# Standalone patch + make
-cd ~/gh/pydevices/cmods/lv_circuitpython_mod
-./apply_cp_lvgl_patches.sh --apply --port espressif --board adafruit_qualia_s3_rgb666
-cd ../circuitpython/ports/espressif && make -j BOARD=adafruit_qualia_s3_rgb666
-
-# Or cmods orchestrator (also applies usdl2 + pygraphics on unix)
-cd ~/gh/pydevices/cmods
-./build_cp.sh --port espressif --board adafruit_qualia_s3_rgb666
+# Patch + make (from this repo)
+./apply_cp_patches.sh --apply --port espressif --board adafruit_qualia_s3_rgb666
+cd ../circuitpython/ports/espressif
+. ./esp-idf/export.sh
+# Prefer PYTHON from a venv that has circuitpython/requirements-dev.txt
+make -j BOARD=adafruit_qualia_s3_rgb666
 ```
 
-`build_cp.sh` runs `apply_cp_lvgl_patches.sh` before `make`, creates/uses `.venv` for CircuitPython `requirements-dev.txt`, and for espressif activates IDF via `ports/espressif/esp-idf/export.sh`.
+See the [cmods workspace](https://github.com/PyDevices/cmods) for an easier way to build this repo with other CircuitPython extensions.
 
 ## Board detection pitfalls
 
@@ -38,7 +35,7 @@ cd ~/gh/pydevices/cmods
 
 LVGL adds hundreds of `.c` files to `SRC_C`. Espressif’s huge `QSTR_GEN_CFLAGS` + `SRC_QSTR += $(SRC_C)` exceeds Linux `ARG_MAX` during qstr preprocess.
 
-**Fix:** Keep LVGL sources in `SRC_C` for the link, but **exclude them from `SRC_QSTR`** (they have no `MP_QSTR_*`). `apply_cp_lvgl_patches.sh` rewrites the port Makefile:
+**Fix:** Keep LVGL sources in `SRC_C` for the link, but **exclude them from `SRC_QSTR`** (they have no `MP_QSTR_*`). `apply_cp_patches.sh` rewrites the port Makefile:
 
 ```make
 SRC_QSTR += $(filter-out $(LV_CP_LVGL_SOURCES),$(SRC_C))
@@ -50,7 +47,7 @@ Documented in `circuitpython.mk`.
 
 IDF export owns `python3` (needed for `idf_component_manager`). CircuitPython recipes need `minify_html` etc. from the CP venv.
 
-**Fix in `build_cp.sh`:** After IDF export, set `PYTHON` to `lv_circuitpython_mod/.venv/bin/python`. Do **not** put the venv’s `python3` first on `PATH` before IDF export — that breaks component manager.
+**Fix:** After IDF export, set `PYTHON` to a venv that has CircuitPython `requirements-dev.txt` installed (for example `lv_circuitpython_mod/.venv/bin/python`). Do **not** put the venv’s `python3` first on `PATH` before IDF export — that breaks component manager.
 
 ### 3. `-Werror=suggest-attribute=format` on LVGL
 
@@ -60,7 +57,7 @@ IDF export owns `python3` (needed for `idf_component_manager`). CircuitPython re
 
 `lv_bindings/lv_conf.h` sets `LV_USE_GIF 1`, so LVGL’s `libs/gif/gif.c` is compiled. CircuitPython’s `CIRCUITPY_GIFIO` (defaults with displayio) vendors a colliding AnimatedGIF `gif.c`. The **bindings generator does not need changes** for this — it is a CircuitPython build conflict.
 
-**Fix:** `apply_cp_lvgl_patches.sh` forces `CIRCUITPY_GIFIO = 0` whenever `CIRCUITPY_LVGL=1` (shared `circuitpy_mpconfig.mk` and per-board enable block). After flipping GIFIO off on an existing build dir, delete stale genhdr:
+**Fix:** `apply_cp_patches.sh` forces `CIRCUITPY_GIFIO = 0` whenever `CIRCUITPY_LVGL=1` (shared `circuitpy_mpconfig.mk` and per-board enable block). After flipping GIFIO off on an existing build dir, delete stale genhdr:
 
 ```bash
 rm -f build-<board>/genhdr/module/*gifio* build-<board>/genhdr/qstr/*gifio*
@@ -70,7 +67,7 @@ rm -f build-<board>/genhdr/module/*gifio* build-<board>/genhdr/qstr/*gifio*
 
 Full LVGL app is ~**2.6–2.7 MB**. Stock `esp-idf-config/partitions-16MB.csv` has `ota_0 = 2048K`.
 
-**Fix:** `partitions-16MB-lvgl.csv` with `ota_0 = 4096K` (moves `uf2` to `0x610000`, shrinks `user_fs`). `apply_cp_lvgl_patches.sh` copies it to `ports/espressif/esp-idf-config/` and points the board `sdkconfig` at it for 16MB boards.
+**Fix:** `partitions-16MB-lvgl.csv` with `ota_0 = 4096K` (moves `uf2` to `0x610000`, shrinks `user_fs`). `apply_cp_patches.sh` copies it to `ports/espressif/esp-idf-config/` and points the board `sdkconfig` at it for 16MB boards.
 
 **Critical:** The CSV path in `sdkconfig` must be under `esp-idf-config/`. Paths outside the port tree are ignored by IDF confgen, and the build silently keeps the stock 2MB table. After changing partitions, wipe the board’s esp-idf build config if needed:
 
@@ -154,8 +151,10 @@ Proven end-to-end sequence:
 ### A. Build
 
 ```bash
-cd ~/gh/pydevices/cmods/lv_circuitpython_mod
-./build_cp.sh --port espressif --board adafruit_qualia_s3_rgb666
+./apply_cp_patches.sh --apply --port espressif --board adafruit_qualia_s3_rgb666
+cd ../circuitpython/ports/espressif
+. ./esp-idf/export.sh
+make -j BOARD=adafruit_qualia_s3_rgb666
 ```
 
 Confirm `build-adafruit_qualia_s3_rgb666/circuitpython-firmware.bin` ≈ 2.6MB and partition filename is `partitions-16MB-lvgl.csv`.
@@ -227,4 +226,4 @@ Adafruit CircuitPython 10.2.1-dirty ... Adafruit-Qualia-S3-RGB666
 ## Upstream / commit policy
 
 - Do **not** commit changes inside `circuitpython/` (or `micropython/`) unless explicitly overridden.
-- Durable fixes belong in `lv_circuitpython_mod/` (`apply_cp_lvgl_patches.sh`, `circuitpython.mk`, `scripts/partitions-16MB-lvgl.csv`). Optional cmods orchestrator: workspace-root `build_cp.sh`.
+- Durable fixes belong in `lv_circuitpython_mod/` (`apply_cp_patches.sh`, `circuitpython.mk`, `scripts/partitions-16MB-lvgl.csv`).

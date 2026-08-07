@@ -2,18 +2,18 @@
 # Apply (or preview) CircuitPython LVGL integration patches.
 #
 # Usage:
-#   ./apply_cp_lvgl_patches.sh --apply --port PORT [--board BOARD] [--variant VARIANT]
-#   ./apply_cp_lvgl_patches.sh --force-apply --port PORT ...   # reinstall (user only)
-#   ./apply_cp_lvgl_patches.sh --dry-run --port PORT ...
-#   ./apply_cp_lvgl_patches.sh --status --port PORT ...
+#   ./apply_cp_patches.sh --apply --port PORT [--board BOARD] [--variant VARIANT]
+#   ./apply_cp_patches.sh --force-apply --port PORT ...   # reinstall (user only)
+#   ./apply_cp_patches.sh --dry-run --port PORT ...
+#   ./apply_cp_patches.sh --status --port PORT ...
 #
 # Environment: WORKSPACE_DIR, CP_DIR, PORT, BOARD, VARIANT
 #
 # Standalone: clone circuitpython + lv_circuitpython_mod (+ lv_bindings) as
 # siblings, then:
-#   ./apply_cp_lvgl_patches.sh --apply --port unix --variant coverage
+#   ./apply_cp_patches.sh --apply --port unix --variant coverage
 #   cd ../circuitpython/ports/unix && make -j VARIANT=coverage
-# No cmods workspace or other usermods required.
+# No other usermods required.
 #
 # All-port requirements (unix, espressif, …) — not ESP-specific:
 #   1. include lv_circuitpython_mod/circuitpython.mk from the port Makefile
@@ -29,26 +29,14 @@ die() { echo "error: $*" >&2; exit 1; }
 LV_CP_MOD_DIR=$(cd "$(dirname "$0")" && pwd)
 WORKSPACE_DIR="${WORKSPACE_DIR:-$(cd "$LV_CP_MOD_DIR/.." && pwd)}"
 
-# Resolve CircuitPython without requiring a cmods workspace. Override with CP_DIR.
-if [[ -z "${CP_DIR:-}" ]] || [[ ! -d "${CP_DIR}/ports" ]]; then
-    CP_DIR=""
-    for _cand in \
-        "$WORKSPACE_DIR/circuitpython" \
-        "$HOME/github/circuitpython" \
-        "$HOME/gh/circuitpython" \
-        "$HOME/gh/pydevices/cmods/circuitpython"
-    do
-        if [[ -d "$_cand/ports" ]]; then
-            CP_DIR=$(cd "$_cand" && pwd)
-            break
-        fi
-    done
+# Resolve CircuitPython: CP_DIR, else sibling circuitpython/ under WORKSPACE_DIR.
+if [[ -n "${CP_DIR:-}" && -d "${CP_DIR}/ports" ]]; then
+    CP_DIR=$(cd "$CP_DIR" && pwd)
+elif [[ -d "$WORKSPACE_DIR/circuitpython/ports" ]]; then
+    CP_DIR=$(cd "$WORKSPACE_DIR/circuitpython" && pwd)
+else
+    die "CircuitPython tree not found (set CP_DIR, or place circuitpython/ next to this repo under $WORKSPACE_DIR)."
 fi
-unset _cand
-if [[ -z "${CP_DIR:-}" ]] || [[ ! -d "$CP_DIR/ports" ]]; then
-    die "CircuitPython tree not found (looked for sibling circuitpython/ under $WORKSPACE_DIR). Set CP_DIR."
-fi
-CP_DIR=$(cd "$CP_DIR" && pwd)
 
 PORT="${PORT:-}"
 BOARD="${BOARD:-}"
@@ -57,7 +45,7 @@ MODE=""
 SPIKE_DIR="$LV_CP_MOD_DIR/src/circuitpython_spike"
 SPIKE_MANIFEST="$SPIKE_DIR/copy_manifest.txt"
 
-MARKER_TAG="lv-circuitpython-mod begin (apply_cp_lvgl_patches.sh)"
+MARKER_TAG="lv-circuitpython-mod begin (apply_cp_patches.sh)"
 MARKER_BEGIN="# >>> $MARKER_TAG"
 MARKER_END="# >>> lv-circuitpython-mod end"
 
@@ -161,10 +149,6 @@ for pat in patterns:
     text = re.sub(pat, "\n", text, count=0, flags=re.DOTALL)
 path.write_text(text)
 PY
-}
-
-remove_legacy_patches() {
-    remove_marked_blocks "$1" "cmods-lvgl begin (apply_cp_lvgl_patches.sh)"
 }
 
 remove_current_patches() {
@@ -454,14 +438,6 @@ patch_module_sources_if_present() {
 }
 
 build_next_cmd() {
-    local -a cmd=()
-    if [[ -x "$WORKSPACE_DIR/build_cp.sh" ]]; then
-        cmd=("$WORKSPACE_DIR/build_cp.sh" --port "$PORT")
-        [[ -n "$BOARD" ]] && cmd+=(--board "$BOARD")
-        [[ -n "$VARIANT" ]] && cmd+=(--variant "$VARIANT")
-        printf '%q ' "${cmd[@]}"
-        return
-    fi
     # Standalone: plain make in the port directory.
     local port_dir="$CP_DIR/ports/$PORT"
     printf 'cd %q && make -j' "$port_dir"
@@ -554,7 +530,6 @@ if [ "$FORCE" = 1 ]; then
     log "==> Remove existing LVGL patches (force reinstall)"
     for _f in "${ALL_PATCH_FILES[@]}"; do
         remove_current_patches "$_f"
-        remove_legacy_patches "$_f"
         remove_raw_lvgl_lines "$_f"
     done
     log
@@ -563,14 +538,6 @@ fi
 log "==> Copy spike templates"
 copy_spike_files
 log
-
-if [ "$APPLY" = 1 ] || [ "$DRY_RUN" = 1 ]; then
-    log "==> Remove legacy cmods-lvgl patches (if present)"
-    for _legacy in "${ALL_PATCH_FILES[@]}"; do
-        remove_legacy_patches "$_legacy"
-    done
-    log
-fi
 
 # GIFIO's lib/AnimatedGIF/gif.c duplicates LVGL libs/gif/gif.c — keep LVGL's.
 LVGL_ENABLE_BLOCK="CIRCUITPY_LVGL = 1
@@ -732,4 +699,5 @@ elif [ "$APPLY" = 1 ]; then
         log "  (regenerate lv_bindings CircuitPython artifacts if needed)"
     fi
     log "  $(build_next_cmd)"
+    log "See https://github.com/PyDevices/cmods for an easier way to build with other extensions."
 fi

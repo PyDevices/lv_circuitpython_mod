@@ -17,7 +17,7 @@ LVCP_C := $(LV_BINDINGS_DIR)/generated/lvgl_circuitpython.c
 LV_CP_LVGL_SOURCES := $(shell find $(LVGL_DIR)/src -type f -name '*.c')
 # CP coverage (and jpegio) already link lib/tjpgd; LVGL's copy uses incompatible tjpgdcnf.
 LV_CP_LVGL_SOURCES := $(filter-out $(LVGL_DIR)/src/libs/tjpgd/tjpgd.c,$(LV_CP_LVGL_SOURCES))
-# CIRCUITPY_GIFIO vendors AnimatedGIF/gif.c — apply_cp_lvgl_patches forces
+# CIRCUITPY_GIFIO vendors AnimatedGIF/gif.c — apply_cp_patches forces
 # CIRCUITPY_GIFIO=0 when CIRCUITPY_LVGL=1 so LVGL's libs/gif/gif.c (LV_USE_GIF)
 # can link. No lv_bindings generator change; constraint is build-side.
 LV_CP_SOURCES := $(LV_CP_MOD_DIR)/src/lv_mem_core_circuitpython.c
@@ -48,7 +48,7 @@ $(foreach _lvsrc,$(LV_CP_SOURCES),$(eval $(BUILD)/$(_lvsrc:.c=.o): CFLAGS += $(L
 # LVGL + bindings + GC-aware allocator.
 # LVGL core .c has no MP_QSTR_* — it must stay out of SRC_QSTR. Ports append
 # SRC_C to SRC_QSTR; with ESP-IDF's huge QSTR_GEN_CFLAGS that argv exceeds
-# ARG_MAX ("Argument list too long" on qstr.i.last). apply_cp_lvgl_patches.sh
+# ARG_MAX ("Argument list too long" on qstr.i.last). apply_cp_patches.sh
 # rewrites SRC_QSTR += lines to filter-out $(LV_CP_LVGL_SOURCES).
 SRC_C += $(LV_CP_LVGL_SOURCES) $(LV_CP_SOURCES)
 
