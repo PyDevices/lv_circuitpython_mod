@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # Apply (or preview) CircuitPython LVGL integration patches.
 #
+# Out-of-tree substitute for Adafruit Extending CircuitPython (no upstream PR):
+#   Learn / design-guide step              This script
+#   shared-bindings/<mod>/                 copy spike → CP shared-bindings/lvgl/
+#   shared-module/<mod>/                   copy spike → CP shared-module/lvgl/
+#   enable CIRCUITPY_* / mpconfig          CIRCUITPY_LVGL (+ GIFIO=0) in mk / h
+#   list sources in port Makefile          board/variant SRC lists + SRC_PATTERNS
+#   include port Makefile fragment         include circuitpython.mk from this repo
+#   build CircuitPython                    caller runs make (or workspace build_cp.sh)
+# Conceptual refs:
+#   https://learn.adafruit.com/extending-circuitpython
+#   https://docs.circuitpython.org/en/latest/docs/design_guide.html
+#
 # Usage:
 #   ./apply_cp_patches.sh --apply --port PORT [--board BOARD] [--variant VARIANT]
 #   ./apply_cp_patches.sh --force-apply --port PORT ...   # reinstall (user only)

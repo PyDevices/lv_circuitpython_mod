@@ -3,9 +3,13 @@
 Target board: **[ESP32-P4-Function-EV-Board](https://circuitpython.org/board/espressif_esp32p4_function_ev/)**
 (`BOARD=espressif_esp32p4_function_ev`, `ports/espressif`).
 
-Copy these files into a CircuitPython tree after `circuitpython/` is in place.
-Use `apply_cp_patches.sh` for `CIRCUITPY_LVGL`, `circuitpy_defns.mk`, and
-`circuitpython.mk` wiring.
+These templates match Adafruit’s
+[Extending CircuitPython](https://learn.adafruit.com/extending-circuitpython)
+`shared-bindings` / `shared-module` layout, but live in this repo instead of
+being committed upstream. Copy them into a CircuitPython tree after
+`circuitpython/` is in place. Use `apply_cp_patches.sh` for `CIRCUITPY_LVGL`,
+`circuitpy_defns.mk`, and `circuitpython.mk` wiring (see the README Learn-guide
+mapping table).
 
 ## Layout in CircuitPython
 

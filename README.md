@@ -78,6 +78,22 @@ export PATH="$(pwd)/.venv/bin:$PATH"
 
 ## Patch and build
 
+Adafruit’s [Extending CircuitPython](https://learn.adafruit.com/extending-circuitpython)
+guide (and the [design guide — native modules](https://docs.circuitpython.org/en/latest/docs/design_guide.html))
+describe adding `shared-bindings/` + `shared-module/` **inside** the CircuitPython
+tree. This repo keeps those sources out-of-tree under `src/circuitpython_spike/`
+and applies them with `./apply_cp_patches.sh` into a local (uncommitted)
+CircuitPython clone — Adafruit has no separate out-of-tree C-module path.
+See `docs/circuitpython_spike.md` for spike layout details.
+
+| Adafruit step | This repo |
+|---------------|-----------|
+| `shared-bindings/<mod>/` | `src/circuitpython_spike/shared-bindings/lvgl/` |
+| `shared-module/<mod>/` | `src/circuitpython_spike/shared-module/lvgl/` |
+| Enable `CIRCUITPY_*` | Patches set `CIRCUITPY_LVGL` (and `CIRCUITPY_GIFIO=0`) |
+| List sources in port Makefile | Board/variant `.mk` + `SRC_PATTERNS` + `circuitpython.mk` |
+| Build | `make` after `--apply` |
+
 ```bash
 cd lv_circuitpython_mod
 ./apply_cp_patches.sh --dry-run --port unix --variant coverage
